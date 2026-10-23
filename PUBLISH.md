@@ -1,5 +1,8 @@
 # Pubblicare PDF2LIST su GitHub
 
+Repository: **https://github.com/alepifani-admin/pdf2list**
+Release corrente: **https://github.com/alepifani-admin/pdf2list/releases/tag/v1.1.0**
+
 La build delle tre piattaforme è automatizzata con GitHub Actions:
 
 | Runner | Artefatto |
@@ -9,7 +12,8 @@ La build delle tre piattaforme è automatizzata con GitHub Actions:
 | `windows-latest` | `PDF2LIST-Windows-x64.zip` |
 
 Il workflow `.github/workflows/build.yml` esegue i test, compila con
-PyInstaller e allega gli ZIP alla release quando viene creato un tag `v*`.
+PyInstaller e, al termine di tutte e tre le build, un job separato crea la
+release del tag `v*` con gli ZIP e `SHA256SUMS.txt`.
 
 ## 1. Prerequisiti
 

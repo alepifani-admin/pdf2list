@@ -28,7 +28,7 @@ PDF2LIST nasce dal procedimento usato per convertire il listino Fernova 2023/202
 
 ### macOS
 
-1. Scarica `PDF2LIST-macOS-intel.zip` o `PDF2LIST-macOS-apple-silicon.zip` dalla pagina Releases (la build locale Intel si chiama `PDF2LIST-macOS-x86_64.zip`).
+1. Scarica `PDF2LIST-macOS-intel.zip` o `PDF2LIST-macOS-apple-silicon.zip` dalla pagina [Releases](https://github.com/alepifani-admin/pdf2list/releases/latest).
 2. Scompatta e trascina `PDF2LIST.app` in **Applicazioni**.
 3. Al primo avvio fai **clic destro → Apri** (l'app non è notarizzata con un certificato Apple). Se macOS blocca l'apertura, usa *Impostazioni di Sistema → Privacy e sicurezza → Apri comunque*.
 
