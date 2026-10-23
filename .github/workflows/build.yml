@@ -1,0 +1,73 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.artifact }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Runner Intel. Se non disponibile nel tuo account, usa macos-13.
+          - os: macos-15-intel
+            artifact: PDF2LIST-macOS-intel
+            arch: x86_64
+          - os: macos-15
+            artifact: PDF2LIST-macOS-apple-silicon
+            arch: arm64
+          - os: windows-latest
+            artifact: PDF2LIST-Windows-x64
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller pytest
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          python -m PyInstaller --clean --noconfirm packaging/pdf2list.spec
+          codesign --force --deep --sign - dist/PDF2LIST.app || true
+          mkdir -p release
+          ditto -c -k --keepParent dist/PDF2LIST.app "release/${{ matrix.artifact }}.zip"
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -m PyInstaller --clean --noconfirm packaging/pdf2list.spec
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Compress-Archive -Path "dist/PDF2LIST" -DestinationPath "release/${{ matrix.artifact }}.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release/*.zip
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

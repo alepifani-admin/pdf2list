@@ -1,0 +1,464 @@
+{
+ "id": "fernova",
+ "name": "Fernova 2023-2026 (esempio)",
+ "description": "Profilo derivato dal listino Fernova: sinonimi colonne, correzioni OCR e override descrizioni. Utile come esempio di profilo personalizzato.",
+ "currency": "EUR",
+ "aliases": {
+  "descrizione": "Descrizione",
+  "cod.": "Codice",
+  "cod": "Codice",
+  "comp.": "Componenti",
+  "ripriani": "Componenti",
+  "elementi": "Elementi",
+  "form.": "Formato",
+  "cuscini": "Componenti",
+  "imb.": "Imballaggio",
+  "imballaggio": "Imballaggio",
+  "modello": "Codice",
+  "cod. articolo": "Codice",
+  "codice articolo": "Codice",
+  "comp": "Componenti",
+  "componenti": "Componenti",
+  "imb": "Imballaggio",
+  "imballo": "Imballaggio",
+  "form": "Formato",
+  "formati": "Formato",
+  "ganci": "Componenti",
+  "sfere": "Componenti",
+  "pomelli": "Componenti",
+  "ripiani": "Componenti",
+  "finitura": "Componenti",
+  "struttura": "Struttura",
+  "montanti": "Struttura",
+  "misure": "Misure",
+  "peso": "Kg",
+  "prezzo unitario": "Prezzo",
+  "codice": "Codice",
+  "articolo": "Codice"
+ },
+ "text_fixes": [
+  [
+   "\\b3L\\b",
+   "BL"
+  ],
+  [
+   "\\bmonbe\\b",
+   "gambe"
+  ],
+  [
+   "\\bcamoel\\b",
+   "gambe"
+  ],
+  [
+   "\\bcambe\\b",
+   "gambe"
+  ],
+  [
+   "\\bCamoe\\b",
+   "gambe"
+  ],
+  [
+   "\\bmodu\\b(?!li)",
+   "moduli"
+  ],
+  [
+   "rignia cuscini",
+   "Coppia cuscini"
+  ],
+  [
+   "^racciolo ",
+   "Bracciolo "
+  ],
+  [
+   "^acciolo ",
+   "Bracciolo "
+  ],
+  [
+   "^icciolo ",
+   "Bracciolo "
+  ],
+  [
+   "^cciolo ",
+   "Bracciolo "
+  ],
+  [
+   "^•lunio ",
+   "alluminio "
+  ],
+  [
+   "pressofus\\w*\\s+(?:I|l|n)minio",
+   "pressofusione alluminio"
+  ],
+  [
+   "pressofus\\w*\\s+uminio",
+   "pressofusione alluminio"
+  ],
+  [
+   "pressofus\\w*\\s+[ln]inio",
+   "pressofusione alluminio"
+  ],
+  [
+   "piao tacolo",
+   "piano tavolo"
+  ],
+  [
+   "piano ta colo",
+   "piano tavolo"
+  ],
+  [
+   "piano colo ta",
+   "piano tavolo"
+  ],
+  [
+   "\\bAppenalabiti\\b",
+   "Appendiabiti"
+  ],
+  [
+   "\\bvernicitato\\b",
+   "verniciato"
+  ],
+  [
+   "chiuso\\(bracciolo",
+   "chiuso (bracciolo"
+  ],
+  [
+   "\\bFanta\\b",
+   "Fasce"
+  ],
+  [
+   "\\bSontura\\b",
+   "Struttura"
+  ],
+  [
+   "\\b Sonture\\b",
+   " Struttura"
+  ],
+  [
+   "\\bsonture\\b",
+   "struttura"
+  ],
+  [
+   "\\bserien leo em\\b",
+   "serie legno"
+  ],
+  [
+   "\\bSon tre sarin atro en\\b",
+   "Struttura serie legno"
+  ],
+  [
+   "\\bPoi presto sa getro\\b",
+   "Piano in vetro"
+  ],
+  [
+   "\\btaombrelli in lamiera vernicial x\\b",
+   "Portaombrelli in lamiera verniciata"
+  ],
+  [
+   "\\btaombrelli\\b",
+   "Portaombrelli"
+  ],
+  [
+   "\\b¡ecchio\\b",
+   "coperchio"
+  ],
+  [
+   "\\bCapacita\\b",
+   "Capacità"
+  ],
+  [
+   "\\bCapacita\\b",
+   "Capacità"
+  ],
+  [
+   "\\bB80 cm\\b",
+   "80 cm"
+  ],
+  [
+   "\\bD320 mm\\b",
+   "Ø320 mm"
+  ],
+  [
+   "(\\d)0(\\d{2})\\s*mm",
+   "Ø\\1\\2 mm"
+  ],
+  [
+   "(\\d)0(\\d{2})\\s*cm",
+   "Ø\\1\\2 cm"
+  ],
+  [
+   "(\\d)0(\\d{2})×(\\d)",
+   "Ø\\1\\2×\\3"
+  ],
+  [
+   "\\b0390\\b",
+   "Ø390"
+  ],
+  [
+   "\\b0300\\b",
+   "Ø300"
+  ],
+  [
+   "\\b0400\\b",
+   "Ø400"
+  ],
+  [
+   "\\b050 cm\\b",
+   "Ø50 cm"
+  ],
+  [
+   "\\b031×",
+   "Ø31×"
+  ],
+  [
+   "\\b080 cm\\b",
+   "80 cm"
+  ],
+  [
+   "\\b060 cm\\b",
+   "Ø60 cm"
+  ],
+  [
+   "\\b035×35\\b",
+   "35×35"
+  ],
+  [
+   "\\bD(\\d{2,3})×",
+   "Ø\\1×"
+  ],
+  [
+   "\\bD(\\d{2,3}) h",
+   "Ø\\1 h"
+  ],
+  [
+   "\\bD(\\d{2,3})\\b",
+   "Ø\\1"
+  ],
+  [
+   "\\bD(\\d)\\b",
+   "Ø\\1"
+  ],
+  [
+   "@Ø",
+   "Ø"
+  ],
+  [
+   "®(\\d)",
+   "Ø\\1"
+  ],
+  [
+   "@(\\d)",
+   "Ø\\1"
+  ],
+  [
+   "ferro 850 mm",
+   "ferro Ø50 mm"
+  ],
+  [
+   "pressofusion luminio",
+   "pressofusione alluminio"
+  ],
+  [
+   "^(\\d) uttura",
+   "Struttura \\1"
+  ],
+  [
+   "^uttura ",
+   "Struttura "
+  ],
+  [
+   "^on ruttura",
+   "Struttura con 1 ruota"
+  ],
+  [
+   "^ttura ",
+   "Struttura "
+  ],
+  [
+   "\\bSontura\\b",
+   "Struttura"
+  ],
+  [
+   "\\b(\\d)0(\\d{2})\\s*x",
+   "Ø\\1\\2 x"
+  ],
+  [
+   "\\b(\\d)0(\\d{2})\\s*h\\b",
+   "Ø\\1\\2 h"
+  ],
+  [
+   "(\\d)0(\\d{2}) h",
+   "Ø\\1\\2 h"
+  ],
+  [
+   "(\\d)0(\\d{2})×",
+   "Ø\\1\\2×"
+  ],
+  [
+   "\\b0(\\d{2})\\s*(?=mm\\b|cm\\b|h\\b|SP\\b|x\\b|×)",
+   "Ø\\1 "
+  ],
+  [
+   "\\b0(\\d)\\s*(?=mm\\b|cm\\b|h\\b)",
+   "Ø\\1 "
+  ],
+  [
+   "Panca Naxos ['\\\"]B['\\\"]",
+   "Panca Naxos “B”"
+  ],
+  [
+   "Panca Naxos ['\\\"]A['\\\"]",
+   "Panca Naxos “A”"
+  ],
+  [
+   "Panca Naxos B'",
+   "Panca Naxos “B”"
+  ],
+  [
+   "\\bI=(\\d)",
+   "l=\\1"
+  ],
+  [
+   "\\bacciai\\b",
+   "acciaio"
+  ],
+  [
+   "\\bacci cm\\b",
+   "acciaio cm"
+  ],
+  [
+   "\\balluminio\\b",
+   "alluminio"
+  ],
+  [
+   "\\bLuminio\\b",
+   "alluminio"
+  ],
+  [
+   "\\bminio\\b",
+   "alluminio"
+  ],
+  [
+   "\\bpressofusi\\b",
+   "pressofusione"
+  ],
+  [
+   "\\bpressofusio\\b",
+   "pressofusione"
+  ],
+  [
+   "\\bpressofusior\\b",
+   "pressofusione"
+  ],
+  [
+   "\\bpressofusic\\b",
+   "pressofusione"
+  ],
+  [
+   "\\ballum\\b",
+   "alluminio"
+  ],
+  [
+   "\\bmin\\b",
+   "alluminio"
+  ],
+  [
+   "\\bstrutturae\\b",
+   "struttura"
+  ],
+  [
+   "\\bimballaggio\\b",
+   "imballaggio"
+  ],
+  [
+   "\\bI-\\s",
+   "l- "
+  ],
+  [
+   "\\s{2,}",
+   " "
+  ],
+  [
+   "\\s+([,;.])",
+   "\\1"
+  ]
+ ],
+ "group_patterns": [
+  "^COMPONENTE",
+  "^COMPONENTI",
+  "^GRUPPO",
+  "^ACCESSORI",
+  "^OPTIONAL",
+  "^FINITURE"
+ ],
+ "badge_patterns": [
+  "visualizz",
+  "visualiz",
+  "Prodotto\\s*vis",
+  "foto prodotto",
+  "Prezzo\\s*:",
+  "Codice\\s+Prodotto"
+ ],
+ "ignore_patterns": [
+  "^Listino Prodotti",
+  "^pag\\.",
+  "^\\*PRODOTTO",
+  "^DISPONIBILE",
+  "^\\*PRODOTTO DISPONIBILE"
+ ],
+ "description_overrides": {
+  "MEBV5": "Base tonda bombata verniciata Ø50 cm.",
+  "MEBC5": "Base tonda bombata cromata Ø50 cm.",
+  "MECV32": "Colonna verniciata Ø60 mm h. 32 cm + viti.",
+  "MECV72": "Colonna verniciata Ø60 mm h. 72 cm + viti.",
+  "MECV112": "Colonna verniciata Ø60 mm h. 112 cm + viti.",
+  "MECC32": "Colonna cromata Ø60 mm h. 32 cm + viti.",
+  "MECC72": "Colonna cromata Ø60 mm h. 72 cm + viti.",
+  "MECC112": "Colonna cromata Ø60 mm h. 112 cm + viti.",
+  "MEM6": "Ripiano Ø60 cm in melaminico con piastra attacco struttura.",
+  "MEM8": "Ripiano Ø80 cm in melaminico con piastra attacco struttura.",
+  "MEV6": "Ripiano Ø60 cm vetro temperato trasparente con piastra fissaggio.",
+  "MEV8": "Ripiano Ø80 cm vetro temperato trasparente con piastra fissaggio.",
+  "TOUL12": "Struttura per ripiano l=120 cm versione Low con ruote, gambe in acciaio",
+  "TOUL14": "Struttura per ripiano l=140 cm versione Low con ruote, gambe in acciaio",
+  "TOUL16": "Struttura per ripiano l=160 cm versione Low con ruote, gambe in acciaio",
+  "TOUL18": "Struttura per ripiano l=180 cm versione Low con ruote, gambe in acciaio",
+  "TOUH12": "Struttura per ripiano l=120 cm versione High con ruote, gambe in alluminio",
+  "TOUH14": "Struttura per ripiano l=140 cm versione High con ruote, gambe in alluminio",
+  "TOUH16": "Struttura per ripiano l=160 cm versione High con ruote, gambe in alluminio",
+  "TOUH18": "Struttura per ripiano l=180 cm versione High con ruote, gambe in alluminio"
+ },
+ "product_code_overrides": {
+  "SKOPELOS|BMAG": "Bracciolo aperto in pressofusione alluminio sopra gamba",
+  "SKOPELOS|BMAB": "Bracciolo aperto in pressofusione alluminio attacco barra",
+  "SKOPELOS|BMAGC": "Bracciolo chiuso in pressofusione alluminio sopra gamba",
+  "SKOPELOS|BMAGB": "Bracciolo chiuso in pressofusione alluminio attacco barra",
+  "NAXOS A|BMAG": "Bracciolo aperto in pressofusione alluminio sopra gamba",
+  "NAXOS A|BMAB": "Bracciolo aperto in pressofusione alluminio attacco barra",
+  "NAXOS A|BMAGC": "Bracciolo chiuso in pressofusione alluminio sopra gamba",
+  "NAXOS A|BMAGB": "Bracciolo chiuso in pressofusione alluminio attacco barra",
+  "NAXOS B|BMAG": "Bracciolo aperto in pressofusione alluminio sopra gamba",
+  "NAXOS B|BMAB": "Bracciolo aperto in pressofusione alluminio attacco barra",
+  "NAXOS B|BMAGC": "Bracciolo chiuso in pressofusione alluminio sopra gamba",
+  "NAXOS B|BMAGB": "Bracciolo chiuso in pressofusione alluminio attacco barra",
+  "BRACCIOLO 01|BMC": "Bracciolo in metallo chiuso con attacco diretto alla barra, adatto per le panche MARK, SLIM e NEW SLIM. Verniciato / cromato / 25×40 cm",
+  "BRACCIOLO 02|BMCA": "Bracciolo in metallo chiuso con attacco diretto alla barra, adatto per la panca Naxos B. Verniciato / cromato / 28×45 cm",
+  "BRACCIOLO 03|BMAG": "Bracciolo aperto in pressofusione alluminio attacco diretto alla gamba (cod. BMAG) o intermedio tra seduta e seduta con cavallotto in alluminio (cod. BMAB), adatto per le panche SKOPELOS e NAXOS A.",
+  "BRACCIOLO 03|BMAB": "Bracciolo aperto in pressofusione alluminio attacco diretto alla gamba (cod. BMAG) o intermedio tra seduta e seduta con cavallotto in alluminio (cod. BMAB), adatto per le panche SKOPELOS e NAXOS A.",
+  "BRACCIOLO 04|BMAGC": "Bracciolo chiuso in pressofusione alluminio attacco diretto alla gamba (cod. BMAGC) o intermedio tra seduta e seduta con cavallotto in alluminio (cod. BMAGB), adatto per le panche SKOPELOS e NAXOS A.",
+  "BRACCIOLO 04|BMAGB": "Bracciolo chiuso in pressofusione alluminio attacco diretto alla gamba (cod. BMAGC) o intermedio tra seduta e seduta con cavallotto in alluminio (cod. BMAGB), adatto per le panche SKOPELOS e NAXOS A.",
+  "MIKY|MIK": "Tavolo attesa in lamiera forata foro Ø5 mm, colonna Ø6 cm, base tonda Ø39 cm, tutto verniciato. Peso 10 kg. Dimensioni 48×47 x h 45 cm."
+ },
+ "section_fixes": {
+  "SISTEMI": "SISTEMI",
+  "PANCHE": "PANCHE",
+  "BRACCIOLI": "BRACCIOLI",
+  "APPENDIABITI": "APPENDIABITI",
+  "APPENDIABIII": "APPENDIABITI",
+  "APP-NDIABIII": "APPENDIABITI",
+  "TAVOLI": "TAVOLI",
+  "AVVOILI": "AVVOLI",
+  "JAVOILI": "GAMBE E RIPIANI",
+  "COMPLEMENTI": "COMPLEMENTI",
+  "COMPLEMEN II": "COMPLEMENTI"
+ }
+}

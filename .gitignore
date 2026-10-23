@@ -1,0 +1,26 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv-app/
+.venv-build/
+build/
+dist/
+release/
+.pytest_cache/
+*.log
+
+# materiale del listino di esempio / output locali
+source.pdf
+pages/
+parsed.json
+pending.json
+pending_out.json
+parse.py
+excel.py
+ocr
+ocr_cell
+ocr.swift
+ocr_cell.swift
+Listino Prodotti Fernova 2023_2026.xlsx
+Listino Prodotti Fernova 2023_2026 - LISTINO.csv
+Listino Prodotti Fernova 2023_2026 - CONFIGURAZIONI.csv
