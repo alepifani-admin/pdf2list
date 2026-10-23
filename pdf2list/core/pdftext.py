@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import logging
-import math
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import fitz  # PyMuPDF
 
@@ -47,14 +46,14 @@ class OcrEngine:
     """Lazy wrapper around RapidOCR (ONNX, CPU, works offline)."""
 
     _lock = threading.Lock()
-    _instance: "OcrEngine | None" = None
+    _instance: OcrEngine | None = None
 
     def __init__(self) -> None:
         self._engine = None
         self._load_error: str | None = None
 
     @classmethod
-    def instance(cls) -> "OcrEngine":
+    def instance(cls) -> OcrEngine:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -78,7 +77,7 @@ class OcrEngine:
             )
             raise OcrError(self._load_error) from exc
 
-    def recognize(self, rgb: "object", width: int, height: int) -> list[tuple]:
+    def recognize(self, rgb: object, width: int, height: int) -> list[tuple]:
         """Run OCR on an RGB numpy array; returns (text, x0, y0, x1, y1, conf)."""
         engine = self._ensure()
         try:
@@ -145,12 +144,11 @@ class PdfDocument:
             self.doc = fitz.open(self.path)
         except Exception as exc:
             raise PdfError(f"Impossibile aprire il PDF: {exc}") from exc
-        if self.doc.needs_pass:
-            if not password or not self.doc.authenticate(password):
-                self.doc.close()
-                raise PdfPasswordRequired(
-                    "Il PDF è protetto da password: inserisci la password per continuare."
-                )
+        if self.doc.needs_pass and (not password or not self.doc.authenticate(password)):
+            self.doc.close()
+            raise PdfPasswordRequired(
+                "Il PDF è protetto da password: inserisci la password per continuare."
+            )
         if self.doc.page_count <= 0:
             self.doc.close()
             raise PdfError("Il PDF non contiene pagine.")
@@ -165,7 +163,7 @@ class PdfDocument:
         except Exception:
             pass
 
-    def __enter__(self) -> "PdfDocument":
+    def __enter__(self):
         return self
 
     def __exit__(self, *exc) -> None:
@@ -180,12 +178,13 @@ class PdfDocument:
         pix = page.get_pixmap(dpi=dpi, alpha=False, colorspace=fitz.csRGB)
         return pix.tobytes("png")
 
-    def _bands(self, page) -> list[Band]:
+    def _bands(self, page, drawings=None) -> list[Band]:
         bands: list[Band] = []
-        try:
-            drawings = page.get_drawings()
-        except Exception:
-            return bands
+        if drawings is None:
+            try:
+                drawings = page.get_drawings()
+            except Exception:
+                return bands
         pw, ph = page.rect.width, page.rect.height
         for d in drawings:
             try:
@@ -210,12 +209,13 @@ class PdfDocument:
                 continue
         return bands
 
-    def _hlines(self, page) -> list[tuple[float, float, float]]:
+    def _hlines(self, page, drawings=None) -> list[tuple[float, float, float]]:
         out: list[tuple[float, float, float]] = []
-        try:
-            drawings = page.get_drawings()
-        except Exception:
-            return out
+        if drawings is None:
+            try:
+                drawings = page.get_drawings()
+            except Exception:
+                return out
         pw = page.rect.width
         for d in drawings:
             try:
@@ -243,6 +243,10 @@ class PdfDocument:
     ) -> PageText:
         page = self.doc[index]
         width, height = page.rect.width, page.rect.height
+        try:
+            drawings = page.get_drawings()
+        except Exception:
+            drawings = []
         words: list[Word] = []
         has_text = False
         if ocr_mode != "always":
@@ -303,7 +307,7 @@ class PdfDocument:
             words=words,
             has_text_layer=has_text and not ocr_used,
             ocr_used=ocr_used,
-            bands=self._bands(page),
-            hlines=self._hlines(page),
+            bands=self._bands(page, drawings),
+            hlines=self._hlines(page, drawings),
             rotation=int(getattr(page, "rotation", 0) or 0),
         )

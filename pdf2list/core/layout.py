@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 from .models import Column, PageText, Row, Table, TextLine, Word, cell_text
 from .normalize import (
+    _key,
     canonical_header,
     clean_text,
     column_kind,
@@ -26,7 +27,6 @@ from .normalize import (
     numeric_ratio,
     parse_number,
     tidy,
-    _key,
 )
 from .profiles import Profile
 
@@ -307,14 +307,14 @@ def _dedupe_labels(labels: list[_Label], per_line: list[list[_Label]]) -> list[_
         for j, other in enumerate(labels):
             if i == j:
                 continue
-            if abs(lab.x0 - other.x0) < 6 and abs(lab.x1 - other.x1) < 12:
-                if lab.canonical and other.canonical and lab.canonical == other.canonical:
-                    # keep the one with more complete text
-                    if len(lab.text) < len(other.text):
-                        drop.add(i)
-                    elif len(lab.text) == len(other.text) and lab.y > other.y:
-                        drop.add(i)
-                    break
+            if (abs(lab.x0 - other.x0) < 6 and abs(lab.x1 - other.x1) < 12
+                    and lab.canonical and other.canonical
+                    and lab.canonical == other.canonical):
+                # keep the one with more complete text
+                if (len(lab.text) < len(other.text)
+                        or (len(lab.text) == len(other.text) and lab.y > other.y)):
+                    drop.add(i)
+                break
     out = [l for i, l in enumerate(labels) if i not in drop]
     # labels that are still identical in text and position
     unique: list[_Label] = []
@@ -690,7 +690,6 @@ def _extract_rows(page: PageText, header: _Header, bottom: float,
             push(cells, y0, y1, conf)
     else:
         # fallback: y-gap clustering with a tight tolerance
-        tol = max(1.8, min(median_h * 0.38, 4.5))
         local = _row_groups(row_words, median_h)
         for g in local:
             if not g:
@@ -779,10 +778,15 @@ def _table_title(page: PageText, header: _Header, profile: Profile) -> str:
 def _short_title(title: str) -> str:
     s = clean_text(title)
     # table bars are often OCR'd without spaces: COBA—TABELLAPREZZI...
+    # Only cut at a hyphen that introduces a title keyword: product names such
+    # as "NEW-SLIM" must keep their hyphen.
     if re.search(r"(?i)(tabella|prezzi|listino)", s.replace(" ", "")):
-        s = re.split(r"[—–-]", s)[0]
-    s = re.sub(r"\s*[—–-]\s*(tabella|lista|listino)\b.*$", "", s, flags=re.IGNORECASE)
-    s = re.sub(r"\b(tabella prezzi.*|prezzi e componenti.*)$", "", s, flags=re.IGNORECASE)
+        s = re.sub(
+            r"\s*[—–-]\s*(?=(?:tabella|lista|listino|prezzi)).*$", "",
+            s, flags=re.IGNORECASE,
+        )
+        s = re.sub(r"\b(tabella prezzi.*|prezzi e componenti.*)$", "", s,
+                   flags=re.IGNORECASE)
     return s.strip(" -—–:") or clean_text(title)
 
 
@@ -972,20 +976,6 @@ def _card_extract(page: PageText, h: _Header, profile: Profile,
         labels = [canonical_header(w, profile) for w in txt.split()]
         return sum(1 for x in labels if x) >= 2
 
-    def is_description_line(ln: TextLine) -> bool:
-        txt = clean_text(ln.text)
-        if not txt or len(txt.split()) < 6:
-            return False
-        if ln.height > median_h * 2.6:
-            return False
-        if is_badge_text(txt, profile) or is_card_header_line(txt):
-            return False
-        if _is_repeated_header([txt], header_names):
-            return False
-        if _card_field(txt.split()[0], profile) is not None:
-            return False
-        return True
-
     def clean_title(text: str) -> str:
         m = re.match(r"^((?:[A-Z0-9][A-Z0-9'’.\-]*\s+){1,3})(?=(?:[A-Z][a-zà-ÿ])|[a-zà-ÿ])",
                      text)
@@ -996,19 +986,6 @@ def _card_extract(page: PageText, h: _Header, profile: Profile,
             if m:
                 return f"{m.group(1)} {m.group(2)}"
         return text
-
-    # find the top of the description block immediately above the card header;
-    # the title is the short line directly above that block
-    desc_lines: list[TextLine] = []
-    last_y = h.y0 + 1000
-    for ln in sorted(above, key=lambda l: -l.y):
-        if not is_description_line(ln):
-            continue
-        if desc_lines and last_y - (ln.y + ln.height) > max(12.0, median_h * 2.2):
-            break
-        desc_lines.append(ln)
-        last_y = ln.y
-    desc_top = min((ln.y for ln in desc_lines), default=h.y0)
 
     for ln in sorted(above, key=lambda l: l.y):
         text = clean_title(clean_text(ln.text))
@@ -1033,7 +1010,7 @@ def _card_extract(page: PageText, h: _Header, profile: Profile,
             continue
         if re.match(r"^(versione|disponibile|appendiabiti|struttura|componenti|"
                     r"ppl|in |con |per |adatto|fornito|colore|finitura)\b",
-                    text, re.I):
+                    text, re.IGNORECASE):
             continue
         title_line = ln
         title = text
@@ -1132,13 +1109,10 @@ def _table_quality(table: Table) -> bool:
     if len(data) == 1 and multi == 0:
         return False
     numeric_prices = 0
-    numeric_cells = 0
     for r in data:
         for i, cell in enumerate(r.cells):
-            if cell and parse_number(cell) is not None:
-                numeric_cells += 1
-                if i in price_idx:
-                    numeric_prices += 1
+            if cell and parse_number(cell) is not None and i in price_idx:
+                numeric_prices += 1
     ratio = numeric_prices / max(1, len(data) * len(price_idx))
     if ratio < 0.34:
         return False
@@ -1153,6 +1127,19 @@ def _table_quality(table: Table) -> bool:
                 used_cols.add(i)
     return len(used_cols) >= 2
 
+
+
+def _data_crosses_gap(page: PageText, x0: float, x1: float, top: float) -> bool:
+    """True when table data spans the vertical corridor between two blocks."""
+    if x1 <= x0:
+        return True
+    limit = top + max(240.0, page.height * 0.35)
+    for w in page.words:
+        if w.y0 <= top or w.y0 > limit:
+            continue
+        if w.x0 < x1 - 2 and w.x1 > x0 + 2:
+            return True
+    return False
 
 
 def _merge_headers_horizontal(headers: list[_Header], page: PageText,
@@ -1171,10 +1158,24 @@ def _merge_headers_horizontal(headers: list[_Header], page: PageText,
         placed = False
         for g in groups:
             ref = g[0]
-            close_x = (min(h.labels[0].x0, ref.labels[0].x0)
-                       - max(h.labels[-1].x1, ref.labels[-1].x1))
+            # Horizontal corridor between the two header blocks.  A negative
+            # value means the blocks overlap (same table), a large positive
+            # value means two side-by-side tables/cards.
+            if h.labels[0].x0 >= ref.labels[-1].x1:
+                gap = h.labels[0].x0 - ref.labels[-1].x1
+            elif ref.labels[0].x0 >= h.labels[-1].x1:
+                gap = ref.labels[0].x0 - h.labels[-1].x1
+            else:
+                gap = 0.0
             if not (abs(h.y0 - ref.y0) <= max(10.0, median_h * 0.9)
-                    and close_x < page.width * 0.12):
+                    and gap <= page.width * 0.12):
+                continue
+            # A wide corridor with no data crossing it separates two tables,
+            # even when their headers happen to sit on the same baseline.
+            if (gap > max(24.0, median_h * 2.5)
+                    and not _data_crosses_gap(page, ref.labels[-1].x1,
+                                              h.labels[0].x0,
+                                              max(ref.y1, h.y1))):
                 continue
             # never join two side-by-side cards: they would duplicate headers
             names = [c.name for hh in g + [h] for c in hh.columns]

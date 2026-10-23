@@ -8,7 +8,7 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 ROOT = Path(SPECPATH).resolve().parent
 APP_NAME = "PDF2LIST"
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 datas = [(str(ROOT / "pdf2list" / "resources"), "pdf2list/resources")]
 binaries = []

@@ -8,9 +8,8 @@ import traceback
 
 from PySide6.QtCore import QThread, Signal
 
-from ..core.ai import AISettings, AIClient, AIError, enhance_result
-from ..core.extract import ExtractOptions, ExtractionCancelled, extract_pdf
-from ..core.models import ExtractionResult
+from ..core.ai import AIClient, AIError, AISettings, enhance_result
+from ..core.extract import ExtractionCancelled, ExtractOptions, extract_pdf
 from ..core.pdftext import PdfPasswordRequired
 from ..core.profiles import Profile
 

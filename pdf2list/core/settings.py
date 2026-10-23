@@ -98,6 +98,67 @@ class AppSettings:
         )
 
 
+def _as_bool(value, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in {"1", "true", "yes", "si", "sì", "on"}:
+            return True
+        if v in {"0", "false", "no", "off", ""}:
+            return False
+    return default
+
+
+def _as_int(value, default: int, low: int, high: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(high, number))
+
+
+def _as_str(value, default: str = "") -> str:
+    return value if isinstance(value, str) else default
+
+
+def _sanitize_app(key: str, value, default):
+    if key == "ocr_mode":
+        return value if value in {"auto", "always", "never"} else default
+    if key == "dpi":
+        return _as_int(value, int(default), 72, 600)
+    if key in {"ai_enabled", "ai_map_columns", "ai_clean_rows", "ai_vision_fallback"}:
+        return _as_bool(value, bool(default))
+    if key == "ai_max_rows":
+        return _as_int(value, int(default), 10, 3000)
+    if key == "ai_timeout":
+        return _as_int(value, int(default), 10, 300)
+    if key == "window_width":
+        return _as_int(value, int(default), 800, 4000)
+    if key == "window_height":
+        return _as_int(value, int(default), 600, 3000)
+    if key in {"profile_id", "provider"}:
+        return _as_str(value, str(default)).strip() or str(default)
+    if key in {"custom_profile_path", "base_url", "model", "last_dir"}:
+        return _as_str(value, str(default)).strip()
+    return value
+
+
+def _sanitize_export(key: str, value, default):
+    if key == "csv_delimiter":
+        text = _as_str(value, str(default))
+        return text if text in {";", ",", "\t"} else str(default)
+    if key in {"decimal_comma", "include_page_column", "one_sheet_per_table",
+               "combined_sheet", "open_after_export", "freeze_header",
+               "auto_filter"}:
+        return _as_bool(value, bool(default))
+    if key == "currency_symbol":
+        return _as_str(value, str(default)).strip()[:3] or str(default)
+    return value
+
+
 def load_settings() -> AppSettings:
     path = settings_path()
     if not path.is_file():
@@ -107,33 +168,43 @@ def load_settings() -> AppSettings:
     except Exception as exc:
         log.warning("cannot read settings: %s", exc)
         return AppSettings()
+    if not isinstance(data, dict):
+        return AppSettings()
     export = ExportSettings()
-    for k, v in (data.pop("export", None) or {}).items():
-        if hasattr(export, k):
-            setattr(export, k, v)
+    raw_export = data.pop("export", None)
+    if isinstance(raw_export, dict):
+        for k, v in raw_export.items():
+            if hasattr(export, k):
+                setattr(export, k, _sanitize_export(k, v, getattr(export, k)))
     settings = AppSettings(export=export)
     for k, v in data.items():
         if hasattr(settings, k) and k != "export":
-            try:
-                setattr(settings, k, v)
-            except Exception:
-                pass
+            setattr(settings, k, _sanitize_app(k, v, getattr(settings, k)))
     return settings
 
 
 def save_settings(settings: AppSettings) -> None:
     path = settings_path()
     data = asdict(settings)
-    tmp = path.with_suffix(".tmp")
+    tmp_path: Path | None = None
     try:
-        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        tmp.replace(path)
+        fd, tmp_name = tempfile.mkstemp(prefix=".settings-", suffix=".tmp",
+                                        dir=str(path.parent))
+        tmp_path = Path(tmp_name)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False, indent=2)
+            fh.flush()
+            os.fsync(fh.fileno())
+        tmp_path.replace(path)
+        tmp_path = None
     except Exception as exc:
         log.error("cannot save settings: %s", exc)
-        try:
-            tmp.unlink(missing_ok=True)
-        except Exception:
-            pass
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _keyring():
@@ -184,17 +255,30 @@ def set_api_key(provider: str, value: str) -> tuple[bool, str]:
 
 def configure_logging(level: int = logging.INFO) -> Path:
     path = log_dir() / "pdf2list.log"
+    # Rotate before opening the handler: renaming an open file fails on
+    # Windows and keeps writing to the old inode on POSIX.
+    try:
+        if path.is_file() and path.stat().st_size > 1_500_000:
+            backup = path.with_suffix(".1")
+            backup.unlink(missing_ok=True)
+            path.replace(backup)
+    except OSError as exc:
+        log.debug("cannot rotate log: %s", exc)
     handler = logging.FileHandler(path, encoding="utf-8")
     handler.setFormatter(logging.Formatter(
         "%(asctime)s %(levelname)s %(name)s: %(message)s"))
     root = logging.getLogger()
     root.setLevel(level)
+    # avoid duplicate handlers if configure_logging is called more than once
+    for existing in list(root.handlers):
+        if not isinstance(existing, logging.FileHandler):
+            continue
+        try:
+            same = Path(existing.baseFilename).resolve() == path.resolve()
+        except OSError:
+            same = False
+        if same:
+            root.removeHandler(existing)
+            existing.close()
     root.addHandler(handler)
-    # keep the log bounded
-    try:
-        if path.stat().st_size > 1_500_000:
-            backup = path.with_suffix(".1")
-            path.replace(backup)
-    except Exception:
-        pass
     return path

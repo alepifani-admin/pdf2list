@@ -5,7 +5,8 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from typing import Iterable, Protocol
+from collections.abc import Iterable
+from typing import Protocol
 
 
 class SupportsProfile(Protocol):
@@ -232,9 +233,6 @@ def canonical_header(text: str, profile: SupportsProfile | None = None,
 
 def is_header_candidate(text: str, profile: SupportsProfile | None = None) -> bool:
     return canonical_header(text, profile) is not None
-
-
-_NUM_RE = re.compile(r"^[+-]?(?:\d{1,3}(?:[ .]\d{3})+|\d+)(?:[.,]\d+)?$")
 
 
 def parse_number(value: object) -> float | None:

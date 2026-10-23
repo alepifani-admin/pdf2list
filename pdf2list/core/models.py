@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Iterable, Sequence
 
 
 @dataclass(slots=True)
@@ -98,14 +98,13 @@ class PageText:
     def sorted_words(self) -> list[Word]:
         return sorted(self.words, key=lambda w: (round(w.cy, 1), w.x0))
 
-    def lines(self, tolerance: float | None = None) -> list[TextLine]:
+    def lines(self) -> list[TextLine]:
         """Group words into visual lines using vertical overlap."""
         words = [w for w in self.words if not w.is_blank()]
         if not words:
             return []
         heights = sorted(w.height for w in words if w.height > 0)
         median_h = heights[len(heights) // 2] if heights else 8.0
-        tol = tolerance if tolerance is not None else max(2.0, median_h * 0.45)
         words = sorted(words, key=lambda w: (w.cy, w.x0))
         groups: list[list[Word]] = []
         for w in words:

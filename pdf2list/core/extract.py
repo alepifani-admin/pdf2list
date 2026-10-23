@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
-from .layout import fallback_tables, extract_tables, table_from_matrix
+from .layout import extract_tables, fallback_tables, table_from_matrix
 from .models import ExtractionResult, Table
-from .pdftext import OcrError, PdfDocument, PdfError, PdfPasswordRequired
+from .pdftext import OcrError, PdfDocument, PdfError
 from .profiles import Profile
 
 log = logging.getLogger(__name__)
@@ -59,6 +59,7 @@ def extract_pdf(
         total = last - first + 1
         total_hint = total
         empty_pages: list[int] = []
+        ocr_pages: list[int] = []
         for n, idx in enumerate(range(first - 1, last)):
             if cancel and cancel():
                 raise ExtractionCancelled("Operazione annullata.")
@@ -66,9 +67,10 @@ def extract_pdf(
             if progress:
                 progress(f"Analisi pagina {pno} di {last}", n, total)
 
-            def page_progress(message: str, _cur: int, _tot: int) -> None:
+            def page_progress(message: str, _cur: int, _tot: int,
+                              _n: int = n, _total: int = total) -> None:
                 if progress:
-                    progress(message, n, total)
+                    progress(message, _n, _total)
 
             try:
                 page = doc.extract_page(idx, ocr_mode=options.ocr_mode,
@@ -87,6 +89,8 @@ def extract_pdf(
             if not page.words:
                 empty_pages.append(pno)
                 continue
+            if getattr(page, "ocr_used", False):
+                ocr_pages.append(pno)
             tables = extract_tables(page, profile)
             if not tables and options.use_ruled_tables:
                 tables = _ruled_tables(doc, idx, pno, profile)
@@ -94,6 +98,11 @@ def extract_pdf(
                 tables = fallback_tables(page, profile)
             if tables:
                 tables = _filter_tables(tables)
+            # Badge configurations can exist on a page without a recognised
+            # table: collect them before discarding an "empty" page.
+            configs = _collect_configs(page, tables, profile, pno)
+            if configs:
+                result.meta.setdefault("configs", []).extend(configs)
             if not tables:
                 empty_pages.append(pno)
                 continue
@@ -101,9 +110,6 @@ def extract_pdf(
                 if not t.title:
                     t.title = _page_label(page)
                 result.tables.append(t)
-            configs = _collect_configs(page, tables, profile, pno)
-            if configs:
-                result.meta.setdefault("configs", []).extend(configs)
             if progress:
                 progress(f"Pagina {pno}: {sum(len(t.data_rows()) for t in tables)} righe",
                          n + 1, total)
@@ -119,6 +125,8 @@ def extract_pdf(
             result.warnings.append(hint)
         if empty_pages:
             result.meta["empty_pages"] = empty_pages
+        if ocr_pages:
+            result.meta["ocr_pages"] = ocr_pages
         result.merge_similar()
         _apply_profile_overrides(result, profile)
     if progress:
@@ -128,8 +136,8 @@ def extract_pdf(
 
 def _collect_configs(page, tables: list[Table], profile: Profile,
                      pno: int) -> list[dict]:
-    from .normalize import clean_text, is_badge_text, is_numeric_token
     from .layout import _short_title
+    from .normalize import clean_text, is_badge_text, is_numeric_token
 
     all_lines = page.lines()
     badge_lines = [ln for ln in all_lines if is_badge_text(ln.text, profile)]
@@ -198,9 +206,9 @@ def _collect_configs(page, tables: list[Table], profile: Profile,
                     continue
                 if re.match(r"^(versione|disponibile|appendiabiti|struttura|componenti|"
                             r"ppl|in |con |per |adatto|fornito|colore|finitura)\b",
-                            text, re.I):
+                            text, re.IGNORECASE):
                     continue
-                if re.search(r"(\d\s*[×xX]\s*\d|\bcm\b|\bmm\b|\bkg\b|€|[|,])", text, re.I):
+                if re.search(r"(\d\s*[×xX]\s*\d|\bcm\b|\bmm\b|\bkg\b|€|[|,])", text, re.IGNORECASE):
                     continue
                 first = text.split()[0]
                 from .layout import _card_field
@@ -219,12 +227,11 @@ def _collect_configs(page, tables: list[Table], profile: Profile,
             m = re.search(r"visualizz\w*\s*:?\s*([A-Za-z0-9+./×xX_-]+)", text, re.IGNORECASE)
             if m:
                 code = m.group(1).strip(" |:;,.")
-        m = re.search(r"Prezzo[^\d€]{0,30}€?\s*([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)",
-                      text, re.IGNORECASE)
+        m = re.search(r"Prezzo[^\d€]{0,30}€?\s*(\d[\d.,]*)", text, re.IGNORECASE)
         if m:
             from .normalize import parse_number
 
-            price = parse_number(m.group(1))
+            price = parse_number(m.group(1).rstrip(".,"))
         if not code and price is None:
             continue
         if not code:
@@ -234,9 +241,9 @@ def _collect_configs(page, tables: list[Table], profile: Profile,
         if key in seen:
             continue
         seen.add(key)
-        out.append(dict(sezione=section, prodotto=product, codice=code,
-                        prezzo="" if price is None else f"{price:.2f}".replace(".", ","),
-                        pagina=pno, note=note))
+        out.append({"sezione": section, "prodotto": product, "codice": code,
+                    "prezzo": "" if price is None else f"{price:.2f}".replace(".", ","),
+                    "pagina": pno, "note": note})
     return out
 
 
@@ -266,12 +273,16 @@ def _apply_profile_overrides(result: ExtractionResult, profile: Profile) -> None
         desc_idx = _index_of(headers, "Descrizione")
         if code_idx is None or desc_idx is None:
             continue
-        product = _short_title(table.title)
+        product_idx = _index_of(headers, "Prodotto")
+        table_product = _short_title(table.title)
         for row in table.data_rows():
             if code_idx >= len(row.cells) or desc_idx >= len(row.cells):
                 continue
             code = (row.cells[code_idx] or "").strip()
             desc = row.cells[desc_idx] or ""
+            product = table_product
+            if product_idx is not None and product_idx < len(row.cells):
+                product = (row.cells[product_idx] or "").strip() or table_product
             fixed = profile.apply_description_overrides(product, code, desc)
             if fixed != desc:
                 row.cells[desc_idx] = fixed

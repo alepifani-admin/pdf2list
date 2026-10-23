@@ -7,7 +7,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, QTimer, Qt
+from PySide6.QtCore import QEvent, QObject, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -55,8 +55,9 @@ def main() -> int:
     cli_flags = {"--pdf", "--xlsx", "--csv", "--ocr", "--dpi", "--profile",
                  "--profile-file", "--pages", "--password", "--ai", "--no-ai",
                  "--quiet", "--help", "-h", "--version", "--test-keyring"}
-    if argv and (any(a in cli_flags for a in argv)
-                 or (argv[0].lower().endswith(".pdf"))):
+    # Accept both "--flag value" and "--flag=value".
+    has_flag = any(a.split("=", 1)[0] in cli_flags for a in argv if a.startswith("-"))
+    if argv and (has_flag or argv[0].lower().endswith(".pdf")):
         from .cli import main as cli_main
 
         return cli_main(argv)

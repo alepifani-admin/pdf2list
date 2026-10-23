@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import __app_name__, __version__
 from .core.export import (
     configs_path_for,
     export_configs_csv,
@@ -16,7 +17,6 @@ from .core.extract import ExtractOptions, extract_pdf
 from .core.pdftext import PdfError, PdfPasswordRequired
 from .core.profiles import load_profile
 from .core.settings import AppSettings, load_settings
-from . import __app_name__, __version__
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,6 +43,23 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _parse_pages(raw: str) -> tuple[int, int | None]:
+    text = str(raw).strip().replace(" ", "")
+    if not text:
+        raise ValueError("empty page range")
+    if "-" not in text:
+        page = int(text)
+        if page < 1:
+            raise ValueError("page must be positive")
+        return page, page
+    first_text, last_text = text.split("-", 1)
+    first = int(first_text)
+    last = int(last_text) if last_text else None
+    if first < 1 or (last is not None and last < first):
+        raise ValueError("invalid page range")
+    return first, last
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.test_keyring:
@@ -67,15 +84,21 @@ def main(argv: list[str] | None = None) -> int:
     profile_id = args.profile or settings.profile_id
     profile_path = args.profile_file or (
         settings.custom_profile_path if profile_id == "custom" else None)
-    profile = load_profile(profile_id, profile_path)
+    if profile_id == "custom" and not profile_path:
+        print("Profilo personalizzato non configurato: usa --profile-file.", file=sys.stderr)
+        return 2
+    try:
+        profile = load_profile(profile_id, profile_path)
+    except Exception as exc:
+        print(f"Impossibile caricare il profilo: {exc}", file=sys.stderr)
+        return 2
     first, last = 1, None
     if args.pages:
         try:
-            a, b = args.pages.split("-", 1)
-            first = int(a)
-            last = int(b)
-        except Exception:
-            print("Intervallo pagine non valido (usa ad es. 3-12).", file=sys.stderr)
+            first, last = _parse_pages(args.pages)
+        except (TypeError, ValueError):
+            print("Intervallo pagine non valido (usa ad es. 3-12 oppure 5).",
+                  file=sys.stderr)
             return 2
     options = ExtractOptions(
         ocr_mode=ocr, dpi=dpi, first_page=first, last_page=last,
@@ -88,17 +111,34 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[{current}/{total}] {message}", file=sys.stderr)
 
     print(f"{__app_name__} {__version__}: {path.name}", file=sys.stderr)
-    try:
-        result = extract_pdf(path, options, profile=profile, progress=progress)
-    except PdfPasswordRequired:
-        print("Il PDF è protetto da password: usa --password.", file=sys.stderr)
-        return 3
-    except PdfError as exc:
-        print(f"Errore PDF: {exc}", file=sys.stderr)
-        return 3
-    except Exception as exc:
-        print(f"Errore: {exc}", file=sys.stderr)
-        return 1
+    while True:
+        try:
+            result = extract_pdf(path, options, profile=profile, progress=progress)
+            break
+        except PdfPasswordRequired:
+            if options.password:
+                print("Password non corretta.", file=sys.stderr)
+                return 3
+            if not sys.stdin.isatty():
+                print("Il PDF è protetto da password: usa --password.", file=sys.stderr)
+                return 3
+            import getpass
+
+            try:
+                options.password = getpass.getpass("Password del PDF: ")
+            except (EOFError, KeyboardInterrupt):
+                return 3
+            if not options.password:
+                return 3
+        except PdfError as exc:
+            print(f"Errore PDF: {exc}", file=sys.stderr)
+            return 3
+        except KeyboardInterrupt:
+            print("Operazione annullata.", file=sys.stderr)
+            return 130
+        except Exception as exc:
+            print(f"Errore: {exc}", file=sys.stderr)
+            return 1
     if args.ai and not args.no_ai:
         from .core.ai import enhance_result
 
@@ -116,12 +156,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     xlsx = Path(args.xlsx) if args.xlsx else path.with_suffix(".xlsx")
     csv = Path(args.csv) if args.csv else path.with_suffix(".csv")
-    export_xlsx(result, xlsx, settings)
-    export_csv(result, csv, settings)
+    try:
+        export_xlsx(result, xlsx, settings)
+        export_csv(result, csv, settings)
+        cfg = export_configs_csv(result, configs_path_for(csv), settings)
+    except Exception as exc:
+        print(f"Errore durante l'esportazione: {exc}", file=sys.stderr)
+        return 1
     print(f"Creato {xlsx} ({result.row_count} righe, {len(result.tables)} tabelle)",
           file=sys.stderr)
     print(f"Creato {csv}", file=sys.stderr)
-    cfg = export_configs_csv(result, configs_path_for(csv), settings)
     if cfg:
         print(f"Creato {cfg}", file=sys.stderr)
     for w in result.warnings[:10]:

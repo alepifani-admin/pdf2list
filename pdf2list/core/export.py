@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import logging
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +16,12 @@ from openpyxl.worksheet.worksheet import Worksheet
 from .. import __app_name__, __version__
 from .layout import _short_title
 from .models import ExtractionResult, Table
-from .normalize import parse_number, safe_filename, sanitize_sheet_name, unique_sheet_names
+from .normalize import (
+    parse_number,
+    safe_filename,
+    sanitize_sheet_name,
+    unique_sheet_names,
+)
 from .settings import AppSettings
 
 log = logging.getLogger(__name__)
@@ -31,6 +35,10 @@ BORDER = "BFC4C8"
 PREFERRED = ["Sezione", "Prodotto", "Gruppo", "Descrizione", "Codice", "Struttura",
              "Componenti", "Pannelli", "Ganci", "Coperchio", "Ripiani", "Formato",
              "Elementi", "Misure", "Imballaggio", "Kg", "Prezzo", "Note"]
+
+# Sheet names used by the exporter itself; a table title cannot reuse them.
+FIXED_SHEETS = {"Indice", "Info", "Tutti i dati", "Configurazioni",
+                "Avvisi", "Nessun dato", "Listino"}
 
 
 @dataclass
@@ -100,8 +108,19 @@ def _is_price(col_name: str, kind: str = "") -> bool:
 
 
 def _money_format(symbol: str) -> str:
-    sym = (symbol or "").replace('"', "")
+    sym = "".join(c for c in (symbol or "") if c not in '"&').strip()[:3]
     return f'#,##0.00 "{sym}"' if sym else "#,##0.00"
+
+
+def _protect_formula(text: str) -> str:
+    """Neutralise spreadsheet formula injection in extracted text."""
+    if not text:
+        return text
+    if text[0] in "\t\r":
+        return "'" + text
+    if text[0] in "=+-@" and len(text) > 1:
+        return "'" + text
+    return text
 
 
 def _prepare_cell(value: str, kind: str, currency: str):
@@ -116,9 +135,7 @@ def _prepare_cell(value: str, kind: str, currency: str):
                 return number, _money_format(currency)
             return number, "0.0##"
     # avoid spreadsheet formula injection from extracted text
-    if text[:1] in {"=", "@", "+"} and len(text) > 1:
-        text = "'" + text
-    return text, None
+    return _protect_formula(text), None
 
 
 def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
@@ -136,11 +153,17 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
     multi = len(tables) > 1
     per_table = export.one_sheet_per_table
     titles = unique_sheet_names([_sheet_title(t, i) for i, t in enumerate(tables)])
-    # avoid collisions with the fixed sheet names
-    reserved = {"Indice", "Info", "Tutti i dati"}
-    for i, name in enumerate(titles):
-        if name in reserved:
-            titles[i] = sanitize_sheet_name(f"{name} tabella")
+    # Avoid collisions with the sheets created by the exporter.  Rename first
+    # and de-duplicate again, otherwise a table titled "Configurazioni" would
+    # be silently renamed by openpyxl to "Configurazioni1".
+    reserved = FIXED_SHEETS
+    reserved_lower = {name.lower() for name in reserved}
+    renamed = [
+        sanitize_sheet_name(f"{name} tabella") if name.lower() in reserved_lower
+        else name
+        for name in titles
+    ]
+    titles = unique_sheet_names(renamed)
 
     if per_table:
         table_sheets = list(zip(tables, titles))
@@ -155,7 +178,8 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
         group_fill = _fill("E9EBED")
         for row in t.rows:
             if row.kind == "group":
-                line = [row.cells[0] if row.cells else row.group] + [""] * (len(headers) - 1)
+                group_label = row.cells[0] if row.cells else row.group
+                line = [_protect_formula(group_label)] + [""] * (len(headers) - 1)
                 ws.append(line)
                 n_rows += 1
                 r = ws.max_row
@@ -240,9 +264,10 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
                         values.append("")
                         continue
                     values.append(row.cells[ci] if ci < len(row.cells) else "")
-                line = ([_short_title(t.title) or "Listino"] if include_table else [])
+                line = ([_protect_formula(_short_title(t.title) or "Listino")]
+                        if include_table else [])
                 if group_needed:
-                    line.append(row.group)
+                    line.append(_protect_formula(row.group))
                 line.extend(values)
                 if export.include_page_column:
                     line.append(row.page)
@@ -287,9 +312,12 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
         _style_header(ws, 1, len(headers))
         for c in configs:
             ws.append([
-                c.get("sezione", ""), c.get("prodotto", ""), c.get("codice", ""),
+                _protect_formula(c.get("sezione", "")),
+                _protect_formula(c.get("prodotto", "")),
+                _protect_formula(c.get("codice", "")),
                 parse_number(c.get("prezzo")) if c.get("prezzo") else None,
-                c.get("pagina", ""), c.get("note", ""),
+                c.get("pagina", ""),
+                _protect_formula(c.get("note", "")),
             ])
         for r in range(2, ws.max_row + 1):
             ws.cell(row=r, column=4).number_format = _money_format(export.currency_symbol)
@@ -317,11 +345,11 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
         for t, name in zip(tables, titles):
             pages = ", ".join(str(p) for p in sorted(set(t.pages))[:12])
             warnings = " ".join(t.warnings)
-            ws.append([t.title or name, name, len(t.data_rows()), pages,
-                       t.source, warnings])
+            ws.append([_protect_formula(t.title or name), name, len(t.data_rows()), pages,
+                       _protect_formula(t.source), _protect_formula(warnings)])
         if configs:
             pages = ", ".join(str(p) for p in sorted({c.get("pagina") for c in configs})[:12])
-            ws.append(["Configurazioni dai badge", "Configurazioni", len(configs),
+            ws.append([_protect_formula("Configurazioni dai badge"), "Configurazioni", len(configs),
                        pages, "badge", "Codici e prezzi delle configurazioni complete"])
         for r in range(2, ws.max_row + 1):
             for c in range(1, len(headers) + 1):
@@ -332,6 +360,7 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
 
     # info
     ws = wb.create_sheet("Info")
+    ocr_pages = result.meta.get("ocr_pages") or []
     info = [
         (f"{__app_name__} {__version__}", ""),
         ("", ""),
@@ -342,11 +371,11 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
         ("Configurazioni", str(len(result.meta.get("configs") or []))),
         ("Profilo", settings.profile_id),
         ("Data", datetime.now().strftime("%d/%m/%Y %H:%M")),
-        ("OCR", "usato" if any(t.source in {"header", "cards"} for t in tables) else "non usato"),
+        ("OCR", (f"usato ({len(ocr_pages)} pagine)" if ocr_pages else "non usato")),
         ("AI", "usata (verifica i dati)" if result.meta.get("ai_used") else "non usata"),
         ("", ""),
-        ("Nota", "I dati sono estratti automaticamente dal PDF: verifica sempre "
-                 "prezzi, codici e unità di misura prima dell'uso commerciale."),
+        ("Nota", ("I dati sono estratti automaticamente dal PDF: verifica sempre "
+                  "prezzi, codici e unità di misura prima dell'uso commerciale.")),
     ]
     for a, b in info:
         ws.append([a, b])
@@ -364,7 +393,7 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
         ws["A1"].font = Font(bold=True, size=12, color=DARK)
         for w in list(result.warnings) + [w for t in tables for w in t.warnings]:
             if w:
-                ws.append([w])
+                ws.append([_protect_formula(w)])
         ws.column_dimensions["A"].width = 120
         for r in range(2, ws.max_row + 1):
             ws.cell(row=r, column=1).alignment = Alignment(wrap_text=True, vertical="top")
@@ -400,9 +429,7 @@ def _csv_value(value: str, kind: str, export) -> str:
             else:
                 out = f"{num:.3f}".rstrip("0").rstrip(".")
             return out.replace(".", ",") if export.decimal_comma else out
-    if text[:1] in {"=", "@", "+"} and len(text) > 1:
-        return "'" + text
-    return text
+    return _protect_formula(text)
 
 
 def csv_columns(tables: list[Table], include_page: bool,
@@ -431,9 +458,9 @@ def export_csv(result: ExtractionResult, path: str | Path,
             for row in t.data_rows():
                 cells = []
                 if len(tables) > 1:
-                    cells.append(_short_title(t.title) or "Listino")
+                    cells.append(_protect_formula(_short_title(t.title) or "Listino"))
                 if group_needed:
-                    cells.append(row.group)
+                    cells.append(_protect_formula(row.group))
                 for h in union:
                     try:
                         ci = t.headers.index(h)
@@ -470,9 +497,10 @@ def export_configs_csv(result: ExtractionResult, path: str | Path,
                 if num is not None:
                     price = f"{num:.2f}".replace(
                         ".", "," if settings.export.decimal_comma else ".")
-            writer.writerow([c.get("sezione", ""), c.get("prodotto", ""),
-                             c.get("codice", ""), price, c.get("pagina", ""),
-                             c.get("note", "")])
+            writer.writerow([_protect_formula(c.get("sezione", "")),
+                             _protect_formula(c.get("prodotto", "")),
+                             _protect_formula(c.get("codice", "")), price,
+                             c.get("pagina", ""), _protect_formula(c.get("note", ""))])
     return path
 
 

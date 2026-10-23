@@ -3,7 +3,6 @@ from pdf2list.core.normalize import (
     column_kind,
     parse_number,
     safe_filename,
-    tidy,
 )
 from pdf2list.core.profiles import load_profile
 

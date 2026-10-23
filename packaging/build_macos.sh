@@ -27,7 +27,15 @@ fi
 "$VENV/bin/python" -m pip install --upgrade pip
 "$VENV/bin/python" -m pip install -r requirements.txt pyinstaller
 
-rm -rf build dist release
+# Finder may recreate .DS_Store while the directory is being removed.
+for path in build dist release; do
+  for _ in 1 2 3; do
+    rm -rf "$path" 2>/dev/null || true
+    [ -e "$path" ] || break
+    sleep 0.2
+  done
+  rm -rf "$path"
+done
 "$VENV/bin/python" -m PyInstaller --clean --noconfirm packaging/pdf2list.spec
 
 # Ad-hoc signature: avoids some Gatekeeper issues (the app is not notarized).

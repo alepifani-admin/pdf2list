@@ -1,4 +1,4 @@
-from pdf2list.core.layout import extract_tables
+from pdf2list.core.layout import _short_title, extract_tables
 from pdf2list.core.models import PageText, Word
 from pdf2list.core.profiles import load_profile
 
@@ -54,3 +54,11 @@ def test_extract_synthetic_table():
     assert data[1].cells[2] == "165×62×83"
     assert t.rows[0].kind == "group"
     assert data[0].group == "COMPONENTE / PANCA"
+
+
+def test_short_title_keeps_product_hyphen():
+    assert _short_title("COBA—TABELLAPREZZI") == "COBA"
+    assert _short_title("COBA - TABELLA PREZZI E COMPONENTI") == "COBA"
+    assert _short_title("NEW-SLIM - TABELLA PREZZI") == "NEW-SLIM"
+    assert _short_title("NEW-SLIM") == "NEW-SLIM"
+    assert _short_title("TABELLONE") == "TABELLONE"

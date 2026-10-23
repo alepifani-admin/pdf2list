@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import logging
-import os
-import sys
-import traceback
 from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QDesktopServices,
+    QIcon,
+    QKeySequence,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -28,13 +32,12 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSizePolicy,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtGui import QColor
 
 from .. import __app_name__, __version__
 from ..core.ai import provider_preset
@@ -48,10 +51,8 @@ from ..core.export import (
 from ..core.extract import ExtractOptions
 from ..core.models import ExtractionResult, Table
 from ..core.normalize import parse_number
-from ..core.pdftext import PdfPasswordRequired
 from ..core.profiles import builtin_profiles, load_profile
-from ..core.settings import AppSettings, configure_logging, save_settings
-from ..core.settings import log_dir
+from ..core.settings import AppSettings, log_dir, save_settings
 from .settings_dialog import SettingsDialog
 from .workers import ExtractWorker
 
@@ -361,11 +362,10 @@ class MainWindow(QMainWindow):
         self._profiles = builtin_profiles()
         for pid, name, _ in self._profiles:
             self.profile_combo.addItem(name, pid)
-        if self.settings.custom_profile_path:
+        if self.settings.custom_profile_path or self.settings.profile_id == "custom":
             self.profile_combo.addItem("Personalizzato", "custom")
         idx = self.profile_combo.findData(current)
-        if idx < 0:
-            idx = 0
+        idx = max(idx, 0)
         self.profile_combo.setCurrentIndex(idx)
         self.profile_combo.blockSignals(False)
 
@@ -398,7 +398,7 @@ class MainWindow(QMainWindow):
             key = ""
         if preset.needs_key and not key:
             self.ai_hint.setText(
-                f"{preset.name} · {model}\nChiave API mancante: aprì Impostazioni → AI."
+                f"{preset.name} · {model}\nChiave API mancante: apri Impostazioni → AI."
             )
         else:
             self.ai_hint.setText(
@@ -650,7 +650,7 @@ class MainWindow(QMainWindow):
             self._show_placeholder()
             self.preview_note.setText("")
             return
-        total_shown = 0
+        truncated = False
         for ti, table in enumerate(tables):
             widget = self._table_widget(table)
             name = table.title or f"Tabella {ti + 1}"
@@ -660,8 +660,8 @@ class MainWindow(QMainWindow):
             self.tabs.addTab(widget, label)
             self.tabs.setTabToolTip(ti, f"{table.title}\nOrigine: {table.source}\n"
                                         f"Pagine: {', '.join(map(str, table.pages[:12]))}")
-            total_shown += len(table.data_rows())
-        self.preview_note.setText("anteprima max 800 righe per tabella" if total_shown > 800 else "")
+            truncated = truncated or len(table.data_rows()) > 800
+        self.preview_note.setText("anteprima max 800 righe per tabella" if truncated else "")
         self.tabs.setCurrentIndex(0)
 
     def _table_widget(self, table: Table) -> QTableWidget:
@@ -745,7 +745,6 @@ class MainWindow(QMainWindow):
         try:
             export_xlsx(self.result, path, self.settings)
         except Exception as exc:
-            QApplication.restoreOverrideCursor()
             log.exception("xlsx export failed")
             QMessageBox.critical(self, "Errore", f"Esportazione Excel non riuscita:\n{exc}")
             return
@@ -779,7 +778,6 @@ class MainWindow(QMainWindow):
             cfg_path = configs_path_for(path)
             cfg = export_configs_csv(self.result, cfg_path, self.settings)
         except Exception as exc:
-            QApplication.restoreOverrideCursor()
             log.exception("csv export failed")
             QMessageBox.critical(self, "Errore", f"Esportazione CSV non riuscita:\n{exc}")
             return

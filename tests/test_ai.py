@@ -1,8 +1,6 @@
 import json
 
 from pdf2list.core.ai import (
-    AISettings,
-    AIClient,
     _extract_json,
     clean_table_rows,
     map_table_headers,

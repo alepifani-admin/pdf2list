@@ -77,3 +77,53 @@ def test_export_configs_csv(tmp_path: Path):
     assert "Codice configurazione" in text
     assert "2xCOB90" in text
     assert "819,00" in text
+
+
+def test_sheet_titles_do_not_collide(tmp_path: Path):
+    table = Table(
+        columns=[Column("Codice", 0, 0), Column("Prezzo", 0, 0, kind="price")],
+        rows=[Row(["A1", "10,00"], 1)], pages=[1], title="Configurazioni",
+    )
+    result = ExtractionResult("source.pdf", [table], 1, meta={
+        "configs": [{"sezione": "X", "prodotto": "Y", "codice": "A1",
+                     "prezzo": "10,00", "pagina": 1}]
+    })
+    path = tmp_path / "c.xlsx"
+    export_xlsx(result, path, AppSettings())
+    wb = load_workbook(path)
+    assert len(wb.sheetnames) == len(set(wb.sheetnames))
+    assert "Configurazioni1" not in wb.sheetnames
+
+
+def test_formula_injection_is_neutralised(tmp_path: Path):
+    table = Table(
+        columns=[Column("Descrizione", 0, 0), Column("Codice", 0, 0),
+                 Column("Prezzo", 0, 0, kind="price")],
+        rows=[Row(["=1+1", "-2+3", "10,00"], 1)], pages=[1], title="=1+1",
+    )
+    result = ExtractionResult("source.pdf", [table], 1, meta={"configs": [
+        {"sezione": "@x", "prodotto": "P", "codice": "=1+1",
+         "prezzo": "10,00", "pagina": 1, "note": "=cmd"}
+    ]})
+    xlsx = tmp_path / "i.xlsx"
+    export_xlsx(result, xlsx, AppSettings())
+    wb = load_workbook(xlsx)
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for cell in row:
+                assert not (isinstance(cell.value, str) and cell.value.startswith("="))
+
+    csv_path = tmp_path / "i.csv"
+    export_csv(result, csv_path, AppSettings())
+    rows = list(csv.reader(csv_path.read_text(encoding="utf-8-sig").splitlines(),
+                           delimiter=";"))
+    assert rows[1][0].startswith("'")
+    assert rows[1][1].startswith("'")
+
+    cfg_path = tmp_path / "i-config.csv"
+    export_configs_csv(result, cfg_path, AppSettings())
+    cfg = list(csv.reader(cfg_path.read_text(encoding="utf-8-sig").splitlines(),
+                          delimiter=";"))
+    assert cfg[1][0].startswith("'")
+    assert cfg[1][2].startswith("'")
+

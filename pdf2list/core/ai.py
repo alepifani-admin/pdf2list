@@ -13,11 +13,11 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from .models import Column, ExtractionResult, Row, Table
-from .normalize import CANONICAL, canonical_header, column_kind, unique_sheet_names
+from .normalize import CANONICAL, canonical_header, column_kind
 from .profiles import Profile
 
 log = logging.getLogger(__name__)
@@ -187,8 +187,15 @@ class AIClient:
             headers["Authorization"] = f"Bearer {self.s.api_key}"
         try:
             resp = self._post(url, payload, headers)
-        except AIError:
-            if "response_format" in payload:
+        except AIError as exc:
+            # Some OpenAI-compatible servers reject response_format.  Retry
+            # only when the error plausibly indicates an unsupported field,
+            # never on authentication, rate-limit or network failures.
+            message = str(exc)
+            unsupported = ("HTTP 400" in message or "HTTP 422" in message
+                           or "response_format" in message
+                           or "json_object" in message)
+            if "response_format" in payload and unsupported:
                 payload.pop("response_format", None)
                 resp = self._post(url, payload, headers)
             else:
@@ -236,9 +243,6 @@ class AIClient:
                      image_png: bytes | None, max_tokens: int) -> str:
         safe_model = urllib.parse.quote(self.model, safe="")
         url = f"{self.base_url}/models/{safe_model}:generateContent"
-        key = urllib.parse.quote(self.s.api_key, safe="")
-        if key:
-            url += f"?key={key}"
         parts: list[dict] = [{"text": user_text}]
         if image_png:
             parts.append({
@@ -257,7 +261,8 @@ class AIClient:
         }
         if system:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
-        resp = self._post(url, payload, {})
+        headers = {"x-goog-api-key": self.s.api_key} if self.s.api_key else {}
+        resp = self._post(url, payload, headers)
         try:
             cands = resp.get("candidates") or []
             parts = cands[0]["content"]["parts"]
@@ -381,21 +386,18 @@ def clean_table_rows(client: AIClient, table: Table, max_rows: int = 300,
             cleaned = []
             for old, new in zip(original.cells, new_cells):
                 new = "" if new is None else str(new)
-                # never accept a changed number/code-looking value
-                if _looks_numeric(old) and _looks_numeric(new):
-                    if re.sub(r"[^\d]", "", old) != re.sub(r"[^\d]", "", new):
-                        new = old
+                # never accept a changed number/code-looking value: compare the
+                # digit sequence, so "COB90" and "1406,00" are preserved too.
+                old_digits = re.sub(r"\D", "", old)
+                new_digits = re.sub(r"\D", "", new)
+                if old_digits and old_digits != new_digits:
+                    new = old
                 cleaned.append(new)
             original.cells = cleaned
         if progress:
             progress(f"AI: pulizia righe {start + len(chunk)}/{len(todo)}",
                      start + len(chunk), len(todo))
     return table
-
-
-def _looks_numeric(value: str) -> bool:
-    v = (value or "").strip()
-    return bool(v) and bool(re.search(r"\d", v)) and not re.search(r"[A-Za-zÀ-ÿ]{3,}", v)
 
 
 def enhance_result(result: ExtractionResult, settings: AISettings,

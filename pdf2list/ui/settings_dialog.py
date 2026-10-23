@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import copy
-import os
+import json
 from pathlib import Path
-from typing import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -27,10 +26,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core.ai import AIError, AISettings, PROVIDERS, provider_preset
+from ..core.ai import PROVIDERS, AISettings, provider_preset
 from ..core.profiles import builtin_profiles, save_profile_template
 from ..core.settings import AppSettings, get_api_key, save_settings, set_api_key
 from .workers import TestAIWorker
+
+# Keep detached test threads alive until they finish: destroying a running
+# QThread would crash the process.
+_DETACHED_TEST_WORKERS: set[TestAIWorker] = set()
 
 
 class SettingsDialog(QDialog):
@@ -401,6 +404,20 @@ class SettingsDialog(QDialog):
         self.test_status.setStyleSheet("color: #B03A2E;")
         self.test_status.setText(message[:300])
 
+    def _detach_test_worker(self) -> None:
+        """Let a running connection test finish after the dialog closes."""
+        worker = self._test_worker
+        if worker is None or not worker.isRunning():
+            return
+        self._test_worker = None
+        try:
+            worker.setParent(None)
+        except RuntimeError:
+            return
+        worker.finished.connect(lambda w=worker: _DETACHED_TEST_WORKERS.discard(w))
+        worker.finished.connect(worker.deleteLater)
+        _DETACHED_TEST_WORKERS.add(worker)
+
     def _delete_key(self) -> None:
         pid = self.provider.currentData() or "openai"
         ok, msg = set_api_key(pid, "")
@@ -415,7 +432,9 @@ class SettingsDialog(QDialog):
         s.ocr_mode = self.ocr_mode.currentData()
         s.dpi = int(self.dpi.currentData())
         s.profile_id = self.profile.currentData()
-        s.custom_profile_path = self.custom_profile.text().strip()
+        custom_path = self.custom_profile.text().strip()
+        s.custom_profile_path = (str(Path(custom_path).expanduser())
+                                 if custom_path else "")
         s.ai_enabled = self.ai_enabled.isChecked()
         s.provider = self.provider.currentData() or "openai"
         s.base_url = self.base_url.text().strip()
@@ -442,6 +461,16 @@ class SettingsDialog(QDialog):
             raise ValueError("Per il provider personalizzato inserisci URL base e modello.")
         if s.profile_id == "custom" and not s.custom_profile_path:
             raise ValueError("Seleziona un file JSON per il profilo personalizzato.")
+        if s.profile_id == "custom":
+            profile_path = Path(s.custom_profile_path)
+            if not profile_path.is_file():
+                raise ValueError("Il file del profilo personalizzato non esiste.")
+            try:
+                data = json.loads(profile_path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                raise ValueError(f"Profilo JSON non valido: {exc}") from exc
+            if not isinstance(data, dict):
+                raise ValueError("Il profilo JSON deve contenere un oggetto.")
         save_settings(s)
 
     def _accept(self) -> None:
@@ -452,7 +481,14 @@ class SettingsDialog(QDialog):
             return
         self.accept()
 
+    def accept(self) -> None:
+        self._detach_test_worker()
+        super().accept()
+
+    def reject(self) -> None:
+        self._detach_test_worker()
+        super().reject()
+
     def closeEvent(self, event) -> None:
-        if self._test_worker and self._test_worker.isRunning():
-            self._test_worker.wait(1500)
+        self._detach_test_worker()
         super().closeEvent(event)
