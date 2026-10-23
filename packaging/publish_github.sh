@@ -26,6 +26,9 @@ if [ ! -d .git ]; then
   git init -b main
 fi
 
+# usa gh come credential helper per i push HTTPS
+gh auth setup-git >/dev/null 2>&1 || true
+
 # Commit locale (se ci sono modifiche non ancora registrate)
 git add -A
 if ! git diff --cached --quiet; then
