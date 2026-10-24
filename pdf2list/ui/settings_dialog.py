@@ -236,14 +236,17 @@ class SettingsDialog(QDialog):
 
         box2 = QGroupBox("Excel")
         form2 = QFormLayout(box2)
-        self.one_sheet = QCheckBox("Un foglio per ogni tabella")
-        self.combined = QCheckBox("Aggiungi il foglio 'Tutti i dati'")
+        excel_note = QLabel(
+            "Un unico foglio «Listino»: una riga per articolo o configurazione, "
+            "colonne stabili e filtrabili."
+        )
+        excel_note.setObjectName("Muted")
+        excel_note.setWordWrap(True)
         self.page_col = QCheckBox("Aggiungi la colonna 'Pagina'")
         self.open_after = QCheckBox("Apri il file al termine dell'esportazione")
         self.currency = QLineEdit()
         self.currency.setMaxLength(3)
-        form2.addRow(self.one_sheet)
-        form2.addRow(self.combined)
+        form2.addRow(excel_note)
         form2.addRow(self.page_col)
         form2.addRow(self.open_after)
         form2.addRow("Simbolo valuta", self.currency)
@@ -278,8 +281,6 @@ class SettingsDialog(QDialog):
 
         self.delimiter.setCurrentIndex(max(0, self.delimiter.findData(s.export.csv_delimiter)))
         self.decimal_comma.setChecked(s.export.decimal_comma)
-        self.one_sheet.setChecked(s.export.one_sheet_per_table)
-        self.combined.setChecked(s.export.combined_sheet)
         self.page_col.setChecked(s.export.include_page_column)
         self.open_after.setChecked(s.export.open_after_export)
         self.currency.setText(s.export.currency_symbol)
@@ -446,8 +447,6 @@ class SettingsDialog(QDialog):
         s.ai_timeout = self.ai_timeout.value()
         s.export.csv_delimiter = self.delimiter.currentData() or ";"
         s.export.decimal_comma = self.decimal_comma.isChecked()
-        s.export.one_sheet_per_table = self.one_sheet.isChecked()
-        s.export.combined_sheet = self.combined.isChecked()
         s.export.include_page_column = self.page_col.isChecked()
         s.export.open_after_export = self.open_after.isChecked()
         s.export.currency_symbol = self.currency.text().strip() or "€"

@@ -55,8 +55,6 @@ class ExportSettings:
     csv_delimiter: str = ";"
     decimal_comma: bool = True
     include_page_column: bool = True
-    one_sheet_per_table: bool = True
-    combined_sheet: bool = True
     open_after_export: bool = True
     currency_symbol: str = "€"
     freeze_header: bool = True
@@ -150,8 +148,8 @@ def _sanitize_export(key: str, value, default):
     if key == "csv_delimiter":
         text = _as_str(value, str(default))
         return text if text in {";", ",", "\t"} else str(default)
-    if key in {"decimal_comma", "include_page_column", "one_sheet_per_table",
-               "combined_sheet", "open_after_export", "freeze_header",
+    if key in {"decimal_comma", "include_page_column",
+               "open_after_export", "freeze_header",
                "auto_filter"}:
         return _as_bool(value, bool(default))
     if key == "currency_symbol":

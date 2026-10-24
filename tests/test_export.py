@@ -36,36 +36,121 @@ def sample_result() -> ExtractionResult:
                             ]})
 
 
-def test_export_xlsx(tmp_path: Path):
+DB_HEADERS = ["Tipo", "Tabella", "Gruppo", "Prodotto", "Descrizione",
+              "Codice", "Prezzo", "Kg", "Note", "Pagina"]
+
+
+def test_export_xlsx_uses_one_database_sheet(tmp_path: Path):
     result = sample_result()
     path = tmp_path / "out.xlsx"
     export_xlsx(result, path, AppSettings())
     wb = load_workbook(path)
-    assert "COBA" in wb.sheetnames
-    assert "Schede prodotto" in wb.sheetnames
-    assert "Tutti i dati" in wb.sheetnames
-    assert "Configurazioni" in wb.sheetnames
-    ws = wb["COBA"]
-    assert ws["A1"].value == "Descrizione"
-    assert ws["A2"].value == "FIANCHI"
-    # merged group row then data
-    assert ws["D2"].value is None or ws["D2"].value == ""
-    values = [ws.cell(row=r, column=4).value for r in range(1, ws.max_row + 1)]
-    assert 97.0 in values
-    assert ws.max_row == 4
+
+    assert wb.sheetnames == ["Listino"]
+    ws = wb["Listino"]
+    assert [c.value for c in ws[1]] == DB_HEADERS
+    assert ws.max_row == 5  # header + 2 articles + 1 card + 1 config
+    assert "ListinoDB" in ws.tables
+    assert ws.tables["ListinoDB"].autoFilter is not None
+    assert ws.freeze_panes == "A2"
+
+    rows = [r for r in range(2, ws.max_row + 1)]
+    fianco = next(r for r in rows
+                  if ws.cell(row=r, column=5).value == "Fianco")
+    assert ws.cell(row=fianco, column=1).value == "Articolo"
+    assert ws.cell(row=fianco, column=2).value == "COBA"
+    assert ws.cell(row=fianco, column=3).value == "FIANCHI"
+    assert ws.cell(row=fianco, column=5).value == "Fianco"
+    assert ws.cell(row=fianco, column=6).value == "COB90"
+    assert ws.cell(row=fianco, column=7).value == 97.0
+    assert ws.cell(row=fianco, column=8).value == 3.1
+    assert ws.cell(row=fianco, column=10).value == 1
+
+    configs = [r for r in range(2, ws.max_row + 1)
+               if ws.cell(row=r, column=1).value == "Configurazione"]
+    assert len(configs) == 1
+    cfg = configs[0]
+    assert ws.cell(row=cfg, column=2).value == "SISTEMI"
+    assert ws.cell(row=cfg, column=4).value == "COBA"
+    assert ws.cell(row=cfg, column=6).value == "2xCOB90"
+    assert ws.cell(row=cfg, column=7).value == 819.0
+    assert ws.cell(row=cfg, column=9).value == "Codice Sistema"
+    assert ws.cell(row=cfg, column=10).value == 6
 
 
-def test_export_csv(tmp_path: Path):
+def test_database_has_group_column_instead_of_group_rows(tmp_path: Path):
+    result = sample_result()
+    path = tmp_path / "groups.xlsx"
+    export_xlsx(result, path, AppSettings())
+    ws = load_workbook(path)["Listino"]
+    groups = [ws.cell(row=r, column=3).value for r in range(2, ws.max_row + 1)]
+    assert "FIANCHI" in groups
+    assert "RIPIANI" in groups
+    # group headings are data, not merged full-width rows
+    assert not ws.merged_cells.ranges
+
+
+def test_database_unions_heterogeneous_tables_and_keeps_numbers(tmp_path: Path):
+    first = Table(
+        columns=[Column("Codice", 0, 0), Column("Descrizione", 0, 0),
+                 Column("Prezzo", 0, 0, kind="price"),
+                 Column("L", 0, 0, kind="number"),
+                 Column("H", 0, 0, kind="number")],
+        rows=[Row(["A1", "Pannello", "10,00", "60", "80"], 1)],
+        pages=[1], title="Prima tabella",
+    )
+    second = Table(
+        columns=[Column("Codice", 0, 0), Column("Descrizione", 0, 0),
+                 Column("Prezzo", 0, 0, kind="price"),
+                 Column("Prezzo 2", 0, 0, kind="price")],
+        rows=[Row(["B2", "Base", "20,00", "25,00"], 2)],
+        pages=[2], title="Seconda tabella",
+    )
+    result = ExtractionResult("source.pdf", [first, second], 2)
+    path = tmp_path / "union.xlsx"
+    export_xlsx(result, path, AppSettings())
+    wb = load_workbook(path)
+    assert wb.sheetnames == ["Listino"]
+    ws = wb["Listino"]
+    headers = [c.value for c in ws[1]]
+    assert headers.index("Prezzo") + 1 == headers.index("Prezzo 2")
+    assert "L" in headers and "H" in headers
+    values = {ws.cell(row=r, column=1).value: r for r in range(2, ws.max_row + 1)}
+    assert ws.cell(row=2, column=headers.index("L") + 1).value == 60.0
+    assert ws.cell(row=2, column=headers.index("H") + 1).value == 80.0
+    assert ws.cell(row=3, column=headers.index("Prezzo 2") + 1).value == 25.0
+
+
+def test_export_xlsx_empty_result_still_has_one_sheet(tmp_path: Path):
+    result = ExtractionResult("empty.pdf", [], 1)
+    path = tmp_path / "empty.xlsx"
+    export_xlsx(result, path, AppSettings())
+    wb = load_workbook(path)
+    assert wb.sheetnames == ["Listino"]
+    ws = wb["Listino"]
+    assert ws.max_row == 1
+    assert [c.value for c in ws[1]][:7] == [
+        "Tipo", "Tabella", "Gruppo", "Prodotto", "Descrizione", "Codice",
+        "Prezzo",
+    ]
+    assert "ListinoDB" not in ws.tables
+
+
+def test_export_csv_matches_database_columns(tmp_path: Path):
     result = sample_result()
     path = tmp_path / "out.csv"
     export_csv(result, path, AppSettings())
     text = path.read_text(encoding="utf-8-sig")
-    lines = text.splitlines()
-    assert lines[0].startswith("Tabella;Gruppo;Prodotto;Descrizione")
-    assert "COBA;FIANCHI;;Fianco;COB90;3,1;97,00" in text
-    assert "Schede prodotto;;JOLLY;;JOL;;52,00" in text
-    rows = list(csv.reader(lines, delimiter=";"))
-    assert len(rows) == 4
+    rows = list(csv.reader(text.splitlines(), delimiter=";"))
+    assert rows[0] == DB_HEADERS
+    assert len(rows) == 5
+    assert rows[1] == ["Articolo", "COBA", "FIANCHI", "", "Fianco", "COB90",
+                       "97,00", "3,1", "", "1"]
+    assert rows[2][0:3] == ["Articolo", "COBA", "RIPIANI"]
+    assert rows[3][0:6] == ["Articolo", "Schede prodotto", "", "JOLLY",
+                            "", "JOL"]
+    assert rows[4] == ["Configurazione", "SISTEMI", "", "COBA", "",
+                       "2xCOB90", "819,00", "", "Codice Sistema", "6"]
 
 
 def test_export_configs_csv(tmp_path: Path):
@@ -79,20 +164,16 @@ def test_export_configs_csv(tmp_path: Path):
     assert "819,00" in text
 
 
-def test_sheet_titles_do_not_collide(tmp_path: Path):
+def test_table_title_cannot_create_an_extra_sheet(tmp_path: Path):
     table = Table(
         columns=[Column("Codice", 0, 0), Column("Prezzo", 0, 0, kind="price")],
         rows=[Row(["A1", "10,00"], 1)], pages=[1], title="Configurazioni",
     )
-    result = ExtractionResult("source.pdf", [table], 1, meta={
-        "configs": [{"sezione": "X", "prodotto": "Y", "codice": "A1",
-                     "prezzo": "10,00", "pagina": 1}]
-    })
+    result = ExtractionResult("source.pdf", [table], 1)
     path = tmp_path / "c.xlsx"
     export_xlsx(result, path, AppSettings())
     wb = load_workbook(path)
-    assert len(wb.sheetnames) == len(set(wb.sheetnames))
-    assert "Configurazioni1" not in wb.sheetnames
+    assert wb.sheetnames == ["Listino"]
 
 
 def test_formula_injection_is_neutralised(tmp_path: Path):
@@ -117,8 +198,12 @@ def test_formula_injection_is_neutralised(tmp_path: Path):
     export_csv(result, csv_path, AppSettings())
     rows = list(csv.reader(csv_path.read_text(encoding="utf-8-sig").splitlines(),
                            delimiter=";"))
-    assert rows[1][0].startswith("'")
-    assert rows[1][1].startswith("'")
+    headers = rows[0]
+    desc = headers.index("Descrizione")
+    code = headers.index("Codice")
+    assert rows[1][desc].startswith("'")
+    assert rows[1][code].startswith("'")
+    assert rows[2][code].startswith("'")
 
     cfg_path = tmp_path / "i-config.csv"
     export_configs_csv(result, cfg_path, AppSettings())
@@ -126,4 +211,3 @@ def test_formula_injection_is_neutralised(tmp_path: Path):
                           delimiter=";"))
     assert cfg[1][0].startswith("'")
     assert cfg[1][2].startswith("'")
-

@@ -12,7 +12,7 @@ PDF2LIST nasce dal procedimento usato per convertire il listino Fernova 2023/202
 - Riconoscimento automatico delle tabelle prezzi e delle schede prodotto.
 - Colonne riconosciute in italiano, inglese, tedesco, francese e spagnolo.
 - Profili di estrazione riutilizzabili (sinonimi, correzioni OCR, override).
-- Excel impaginato: intestazioni, filtri, colonne congelate, formati valuta/peso, gruppo, pagina e foglio “Info”.
+- Excel impaginato come database: un unico foglio **Listino**, intestazioni, filtri, colonne congelate, formati valuta/peso, gruppo, pagina.
 - CSV compatibile con Excel italiano (`;`, decimali con virgola, UTF-8 con BOM).
 - AI **facoltativa** per mappare le colonne, correggere gli spazi dell'OCR e leggere con AI Vision le pagine più difficili.
 - Chiavi API nel portachiavi di sistema (Keychain / Credential Manager), mai in chiaro nel file delle impostazioni.
@@ -49,7 +49,7 @@ L'app non richiede installazione e non invia nulla in rete, salvo l'AI se la att
 
 Suggerimenti:
 
-- **Automatico** (predefinito) riconosce il formato di ogni listino: intestazioni di colonna, tabelle bordate, righe prodotto (codice + descrizione + prezzi) o schede con codice e prezzo separati. Il formato rilevato è riportato nel foglio **Info**.
+- **Automatico** (predefinito) riconosce il formato di ogni listino: intestazioni di colonna, tabelle bordate, righe prodotto (codice + descrizione + prezzi) o schede con codice e prezzo separati. Il formato rilevato è riportato nel log e nelle proprietà del file Excel.
 - **Automatico** per l'OCR usa l'OCR solo se il PDF non contiene testo. Per scansioni di bassa qualità prova **Sempre** + 300 DPI.
 - Il profilo **Generico** va bene per la maggior parte dei listini e applica anch'esso il riconoscimento adattivo. Il profilo **Fernova 2023-2026** è un esempio di personalizzazione (sinonimi “Modello”, “Comp.”, correzioni OCR, override descrizioni).
 - Le pagine con layout a schede (foto + tabella chiave/valore) vengono lette come **Schede prodotto**; verifica sempre titoli e descrizioni, che dipendono dalla qualità dell'OCR.
@@ -131,16 +131,16 @@ Il pacchetto macOS include anche il comando CLI:
 
 Excel:
 
-- un foglio per tabella/prodotto (o “Listino” se c'è una sola tabella);
-- foglio **Tutti i dati** con l'unione delle colonne;
-- foglio **Indice** con righe, pagine e origine;
-- foglio **Configurazioni** con i codici e i prezzi dei badge neri (se presenti);
-- foglio **Info** e, se serve, **Avvisi**.
+- un unico foglio **Listino**, pensato come tabella di database: una riga per articolo o configurazione e una colonna per campo;
+- colonne stabili: `Tipo` (Articolo/Configurazione), `Tabella`, `Gruppo`, `Prodotto`, `Descrizione`, `Codice`, `Prezzo`, eventuali colonne aggiuntive (`Prezzo 2`, `Kg`, `L`, `H`, …), `Note`, `Pagina`;
+- intestazione bloccata, filtro e tabella Excel `ListinoDB` già pronti per ordinare e filtrare;
+- metadati (file di origine, pagine, profilo, formato, OCR, avvisi) nelle proprietà del file, senza fogli aggiuntivi.
 
 CSV:
 
-- un file unico, con colonna `Tabella`, `Gruppo`, `Pagina` quando utili;
-- un secondo file `… - CONFIGURAZIONI.csv` quando il PDF contiene badge con codici/prezzi;
+- un file unico con le stesse colonne del foglio Excel;
+- le configurazioni dai badge sono incluse come righe con `Tipo = Configurazione`;
+- un secondo file `… - CONFIGURAZIONI.csv` resta disponibile come riepilogo separato;
 - separatore e decimali configurabili;
 - codifica UTF-8 con BOM per l'apertura diretta in Excel.
 
