@@ -121,6 +121,8 @@ def builtin_profiles() -> list[tuple[str, str, str]]:
                     str(data.get("description") or "")))
     if not any(p[0] == "generic" for p in out):
         out.insert(0, ("generic", "Generico", "Riconoscimento universale di listini"))
+    priority = {"auto": 0, "generic": 1}
+    out.sort(key=lambda item: (priority.get(item[0], 9), item[1].lower()))
     return out
 
 

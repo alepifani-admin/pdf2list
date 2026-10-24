@@ -49,8 +49,9 @@ L'app non richiede installazione e non invia nulla in rete, salvo l'AI se la att
 
 Suggerimenti:
 
-- **Automatico** usa l'OCR solo se il PDF non contiene testo. Per scansioni di bassa qualità prova **Sempre** + 300 DPI.
-- Il profilo **Generico** va bene per la maggior parte dei listini. Il profilo **Fernova 2023-2026** è un esempio di personalizzazione (sinonimi “Modello”, “Comp.”, correzioni OCR, override descrizioni).
+- **Automatico** (predefinito) riconosce il formato di ogni listino: intestazioni di colonna, tabelle bordate, righe prodotto (codice + descrizione + prezzi) o schede con codice e prezzo separati. Il formato rilevato è riportato nel foglio **Info**.
+- **Automatico** per l'OCR usa l'OCR solo se il PDF non contiene testo. Per scansioni di bassa qualità prova **Sempre** + 300 DPI.
+- Il profilo **Generico** va bene per la maggior parte dei listini e applica anch'esso il riconoscimento adattivo. Il profilo **Fernova 2023-2026** è un esempio di personalizzazione (sinonimi “Modello”, “Comp.”, correzioni OCR, override descrizioni).
 - Le pagine con layout a schede (foto + tabella chiave/valore) vengono lette come **Schede prodotto**; verifica sempre titoli e descrizioni, che dipendono dalla qualità dell'OCR.
 - I prezzi vengono convertiti in numeri e formattati; il CSV usa la virgola decimale per impostazione predefinita.
 
@@ -63,7 +64,8 @@ Il motore è indipendente dalla sorgente del testo:
 3. **Colonne**: ricostruisce i confini usando le posizioni delle intestazioni e i corridoi vuoti tra le colonne nei dati reali.
 4. **Righe**: usa le colonne che hanno un valore per riga (prezzo, codice, peso) come ancore verticali; le celle multiriga vengono ricomposte.
 5. **Griglia**: le tabelle larghe diventano fogli; le schede chiave/valore diventano righe prodotto; le tabelle con la stessa struttura e lo stesso prodotto vengono unite tra pagine.
-6. **Export**: Excel/CSV con pulizia dei refusi, numeri, pagine e metadati.
+6. **Formati dinamici**: se le intestazioni non bastano, il motore prova righe prodotto, schede codice/prezzo e tabelle bordate con intestazione ripetuta, poi sceglie il risultato migliore.
+7. **Export**: Excel/CSV con pulizia dei refusi, numeri, pagine e metadati.
 
 I file del progetto originale (`parse.py`, `excel.py`, `ocr.swift`) restano nella cartella come riferimento del procedimento da cui è nata l'app. Per la pubblicazione su GitHub, il listino di esempio e questi file specifici sono esclusi dal repository (vedi `PUBLISH.md`).
 
@@ -86,7 +88,7 @@ Un profilo è un file JSON con:
 }
 ```
 
-I profili inclusi sono in `pdf2list/resources/profiles/`. Da **Impostazioni → Generale** puoi scegliere un profilo personalizzato JSON. Il profilo Fernova è generato dai dizionari e dalle correzioni degli script originali.
+I profili inclusi sono in `pdf2list/resources/profiles/`. Da **Impostazioni → Generale** puoi scegliere un profilo personalizzato JSON. Il profilo **Automatico** abilita il riconoscimento adattivo del formato; **Generico** usa gli stessi sinonimi multilingua e applica anch'esso il riconoscimento adattivo. Il profilo Fernova è generato dai dizionari e dalle correzioni degli script originali.
 
 ## AI facoltativa
 

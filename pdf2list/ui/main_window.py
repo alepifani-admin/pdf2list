@@ -562,6 +562,9 @@ class MainWindow(QMainWindow):
         )
         self.status_label.setText(f"Completato: {nrows} righe estratte")
         self._log(f"Estrazione completata: {ntab} tabelle, {nrows} righe.")
+        detected = (result.meta.get("detected_format") or {}).get("summary")
+        if detected:
+            self._log(f"Formato rilevato: {detected}")
         if ncfg:
             self._log(f"Configurazioni dai badge: {ncfg}")
         for w in result.warnings[:8]:

@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from .autodetect import FormatReport, adaptive_tables, table_score
 from .layout import extract_tables, fallback_tables, table_from_matrix
 from .models import ExtractionResult, Table
 from .pdftext import OcrError, PdfDocument, PdfError
@@ -30,6 +31,7 @@ class ExtractOptions:
     password: str | None = None
     use_ruled_tables: bool = True
     use_fallback: bool = True
+    use_adaptive: bool = True
 
 
 class ExtractionCancelled(RuntimeError):
@@ -49,6 +51,8 @@ def extract_pdf(
 
         profile = load_profile(options.profile_id, options.profile_path)
     result = ExtractionResult(source=str(path))
+    result.meta["profile_id"] = profile.id
+    report = FormatReport()
     total_hint = 1
     with PdfDocument(path, password=options.password) as doc:
         result.pages = doc.page_count
@@ -77,6 +81,7 @@ def extract_pdf(
                                         dpi=options.dpi, progress=page_progress)
             except OcrError as exc:
                 result.warnings.append(f"Pagina {pno}: {exc}")
+                report.record(pno, "none")
                 empty_pages.append(pno)
                 continue
             except PdfError:
@@ -84,20 +89,53 @@ def extract_pdf(
             except Exception as exc:
                 log.exception("page %s failed", pno)
                 result.warnings.append(f"Pagina {pno}: errore di lettura ({exc}).")
+                report.record(pno, "none")
                 empty_pages.append(pno)
                 continue
             if not page.words:
+                report.record(pno, "none")
                 empty_pages.append(pno)
                 continue
             if getattr(page, "ocr_used", False):
                 ocr_pages.append(pno)
             tables = extract_tables(page, profile)
+            technique = _technique_from_sources(tables)
             if not tables and options.use_ruled_tables:
                 tables = _ruled_tables(doc, idx, pno, profile)
+                technique = "rules"
             if not tables and options.use_fallback:
                 tables = fallback_tables(page, profile)
+                technique = "fallback"
             if tables:
                 tables = _filter_tables(tables)
+                if not tables:
+                    technique = ""
+            # Dynamic formats: when the classic heuristics see little or
+            # nothing, try the adaptive strategies and keep the better result.
+            if options.use_adaptive and _needs_adaptive(tables):
+                adaptive, adaptive_technique = adaptive_tables(
+                    page, profile, fitz_page=doc.doc[idx], page_no=pno
+                )
+                if adaptive:
+                    adaptive_rows = sum(len(t.data_rows()) for t in adaptive)
+                    classic_rows = sum(len(t.data_rows()) for t in tables)
+                    better = table_score(adaptive) > table_score(tables)
+                    # A real ruled table with code+price beats a small legend or
+                    # swatch table that has no product codes.  Never discard a
+                    # substantial classic result (e.g. grouped components).
+                    if (not better and adaptive_rows >= 2 and classic_rows <= 6
+                            and _has_canonical(adaptive) and not _has_canonical(tables)):
+                        better = True
+                    if better:
+                        tables = adaptive
+                        technique = adaptive_technique
+            if tables:
+                report.record(
+                    pno, technique or _technique_from_sources(tables),
+                    len(tables), sum(len(t.data_rows()) for t in tables),
+                )
+            else:
+                report.record(pno, "none")
             # Badge configurations can exist on a page without a recognised
             # table: collect them before discarding an "empty" page.
             configs = _collect_configs(page, tables, profile, pno)
@@ -128,6 +166,9 @@ def extract_pdf(
         if ocr_pages:
             result.meta["ocr_pages"] = ocr_pages
         result.merge_similar()
+        report.tables = len(result.tables)
+        report.rows = result.row_count
+        result.meta["detected_format"] = report.as_meta()
         _apply_profile_overrides(result, profile)
     if progress:
         progress("Completato", total_hint, total_hint)
@@ -245,6 +286,38 @@ def _collect_configs(page, tables: list[Table], profile: Profile,
                     "prezzo": "" if price is None else f"{price:.2f}".replace(".", ","),
                     "pagina": pno, "note": note})
     return out
+
+
+def _has_canonical(tables: list[Table]) -> bool:
+    headers = {h for t in tables for h in t.headers}
+    return "Codice" in headers and "Prezzo" in headers
+
+
+def _needs_adaptive(tables: list[Table]) -> bool:
+    """Adaptive extraction is worth a try when the classic result is weak.
+
+    A price list table must at least expose a code and a price column; when the
+    header heuristic picked a legend/swatch table instead (common in LvB
+    catalogues), let the adaptive engine compare its own tables.
+    """
+    rows = sum(len(t.data_rows()) for t in tables)
+    if rows < 3:
+        return True
+    headers = {h for t in tables for h in t.headers}
+    return "Codice" not in headers or "Prezzo" not in headers
+
+
+def _technique_from_sources(tables: list[Table]) -> str:
+    sources = {t.source for t in tables}
+    if "cards" in sources:
+        return "cards"
+    if "rules" in sources:
+        return "rules"
+    if "fallback" in sources:
+        return "fallback"
+    if "adaptive" in sources:
+        return "mixed"
+    return "header" if tables else ""
 
 
 def _filter_tables(tables: list[Table]) -> list[Table]:

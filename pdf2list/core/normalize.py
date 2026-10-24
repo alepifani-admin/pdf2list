@@ -60,6 +60,7 @@ def _add(names: Iterable[str], canonical: str) -> None:
 _add(
     [
         "descrizione", "descrizione articolo", "descrizione prodotto", "description",
+        "descr.", "descr", "descriz.", "descriz",
         "product description", "item description", "bezeichnung", "artikelbeschreibung",
         "descripción", "descripcion", "désignation", "designation", "libellé",
         "prodotto", "product", "artikel", "producto",
@@ -82,7 +83,8 @@ _add(
     ["prezzo", "prezzo unitario", "prezzo di listino", "prezzo listino", "price",
      "unit price", "list price", "prix", "prix unitaire", "precio", "precio unitario",
      "importo", "preis", "verkaufspreis", "value", "valore", "prezzo €", "prezzo eur",
-     "price €", "pvp", "prezzo al pubblico"],
+     "price €", "pvp", "prezzo al pubblico", "€", "eur", "euro", "prezzo euro",
+     "prezzo/euro", "prezzo in euro"],
     "Prezzo",
 )
 _add(

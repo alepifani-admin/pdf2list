@@ -1,0 +1,43 @@
+{
+ "id": "auto",
+ "name": "Automatico (adattivo)",
+ "description": "Riconosce il formato di ogni listino e sceglie la tecnica migliore: intestazioni, tabelle bordate, righe prodotto o schede codice/prezzo.",
+ "currency": "EUR",
+ "aliases": {},
+ "text_fixes": [
+  [
+   "\\b0(\\d{2})\\s*(?=mm\\b|cm\\b|h\\b|×|x\\b)",
+   "Ø\\1 "
+  ],
+  [
+   "(?<=\\d)\\s*[xX]\\s*(?=\\d)",
+   "×"
+  ],
+  [
+   "\\s{2,}",
+   " "
+  ]
+ ],
+ "group_patterns": [
+  "^COMPONENTE",
+  "^COMPONENTI",
+  "^GRUPPO",
+  "^ACCESSORI",
+  "^OPTIONAL",
+  "^CATEGORIA"
+ ],
+ "badge_patterns": [
+  "visualizz",
+  "visualiz",
+  "Prodotto\\s*vis",
+  "foto prodotto",
+  "Prezzo\\s*:"
+ ],
+ "ignore_patterns": [
+  "^pag\\.",
+  "^Listino Prodotti"
+ ],
+ "description_overrides": {},
+ "product_code_overrides": {},
+ "section_fixes": {}
+}

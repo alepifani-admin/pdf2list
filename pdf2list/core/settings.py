@@ -67,7 +67,7 @@ class ExportSettings:
 class AppSettings:
     ocr_mode: str = "auto"
     dpi: int = 200
-    profile_id: str = "generic"
+    profile_id: str = "auto"
     custom_profile_path: str = ""
     ai_enabled: bool = False
     provider: str = "openai"

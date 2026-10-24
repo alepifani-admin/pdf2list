@@ -361,6 +361,7 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
     # info
     ws = wb.create_sheet("Info")
     ocr_pages = result.meta.get("ocr_pages") or []
+    detected = result.meta.get("detected_format") or {}
     info = [
         (f"{__app_name__} {__version__}", ""),
         ("", ""),
@@ -369,7 +370,8 @@ def build_workbook(result: ExtractionResult, settings: AppSettings) -> Workbook:
         ("Tabelle estratte", str(len(tables))),
         ("Righe totali", str(result.row_count)),
         ("Configurazioni", str(len(result.meta.get("configs") or []))),
-        ("Profilo", settings.profile_id),
+        ("Profilo", str(result.meta.get("profile_id") or settings.profile_id)),
+        ("Formato rilevato", str(detected.get("summary") or "—")),
         ("Data", datetime.now().strftime("%d/%m/%Y %H:%M")),
         ("OCR", (f"usato ({len(ocr_pages)} pagine)" if ocr_pages else "non usato")),
         ("AI", "usata (verifica i dati)" if result.meta.get("ai_used") else "non usata"),

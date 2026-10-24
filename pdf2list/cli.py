@@ -31,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ocr", choices=["auto", "always", "never"], default=None,
                    help="Modalità OCR (default: impostazioni)")
     p.add_argument("--dpi", type=int, default=None, help="DPI OCR (default: impostazioni)")
-    p.add_argument("--profile", default=None, help="ID profilo (generic, fernova, ...)")
+    p.add_argument("--profile", default=None, help="ID profilo (auto, generic, fernova, ...)")
     p.add_argument("--profile-file", default=None, help="File JSON di un profilo personalizzato")
     p.add_argument("--pages", default=None, help="Intervallo pagine, es. 3-12")
     p.add_argument("--password", default=None, help="Password del PDF")
@@ -149,6 +149,9 @@ def main(argv: list[str] | None = None) -> int:
                                     progress=progress, pdf_path=str(path))
         except Exception as exc:
             result.warnings.append(f"AI: {exc}")
+    detected = (result.meta.get("detected_format") or {}).get("summary")
+    if detected and not args.quiet:
+        print(f"Formato rilevato: {detected}", file=sys.stderr)
     if not result.tables:
         print("Nessuna tabella riconosciuta.", file=sys.stderr)
         for w in result.warnings:
