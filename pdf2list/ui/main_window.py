@@ -691,7 +691,8 @@ class MainWindow(QMainWindow):
                 font = item.font()
                 font.setBold(True)
                 item.setFont(font)
-                item.setBackground(QColor("#E9EBED"))
+                item.setBackground(QColor("#E3E7EA"))
+                item.setForeground(QColor("#1C2226"))
                 tw.setItem(ri, 0, item)
                 if ncols > 1:
                     tw.setSpan(ri, 0, 1, ncols)
@@ -701,12 +702,14 @@ class MainWindow(QMainWindow):
             for ci in range(len(headers)):
                 raw = row.cells[ci] if ci < len(row.cells) else ""
                 item = QTableWidgetItem(str(raw))
+                item.setForeground(QColor("#232629"))
                 col = table.columns[ci] if ci < len(table.columns) else None
                 if col and col.kind in {"price", "number"} and parse_number(raw) is not None:
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 tw.setItem(ri, ci, item)
             if page_col:
                 item = QTableWidgetItem(str(row.page))
+                item.setForeground(QColor("#5A6066"))
                 item.setTextAlignment(Qt.AlignCenter)
                 tw.setItem(ri, len(headers), item)
             ri += 1
@@ -719,9 +722,12 @@ class MainWindow(QMainWindow):
             tw.setColumnWidth(0, min(max(160, tw.columnWidth(0)), 420))
         tw.horizontalHeader().setStretchLastSection(False)
         tw.setShowGrid(False)
+        # Explicit colours: on macOS dark mode the inherited text colour is
+        # light, which made the table unreadable on its white background.
         tw.setStyleSheet(
-            "QTableWidget { border:none; }"
-            "QTableWidget::item { padding:4px 6px; }"
+            "QTableWidget { background:#FFFFFF; color:#232629; border:none; }"
+            "QTableWidget::item { color:#232629; padding:4px 6px; }"
+            "QTableWidget::item:selected { background:#CDEFE8; color:#16332E; }"
         )
         return tw
 

@@ -10,6 +10,9 @@ QSS = """
 QMainWindow, QDialog {
     background: #F6F7F9;
 }
+QLabel {
+    color: #2E3033;
+}
 QWidget#Header {
     background: #2E3033;
     border-radius: 14px;
@@ -130,11 +133,13 @@ QFrame#Header QPushButton#Ghost:hover {
 }
 QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox {
     background: #FFFFFF;
+    color: #2E3033;
     border: 1px solid #D7DBDF;
     border-radius: 8px;
     padding: 6px 9px;
     min-height: 20px;
     selection-background-color: #00A896;
+    selection-color: #FFFFFF;
 }
 QComboBox:hover, QLineEdit:hover, QSpinBox:hover {
     border-color: #BFC4C8;
@@ -148,6 +153,7 @@ QComboBox::drop-down {
 }
 QComboBox QAbstractItemView {
     background: #FFFFFF;
+    color: #2E3033;
     border: 1px solid #D7DBDF;
     border-radius: 8px;
     selection-background-color: #E8F7F4;
@@ -198,11 +204,20 @@ QTabBar::tab:hover:!selected {
 }
 QTableWidget {
     background: #FFFFFF;
+    color: #232629;
     border: none;
     gridline-color: #EDEFF1;
-    selection-background-color: #E8F7F4;
-    selection-color: #2E3033;
+    selection-background-color: #CDEFE8;
+    selection-color: #16332E;
     alternate-background-color: #FAFBFC;
+}
+QTableWidget::item {
+    color: #232629;
+    padding: 4px 6px;
+}
+QTableWidget::item:selected {
+    background: #CDEFE8;
+    color: #16332E;
 }
 QHeaderView::section {
     background: #2E3033;
@@ -272,6 +287,10 @@ QMenu {
 QMenu::item {
     padding: 6px 24px 6px 12px;
     border-radius: 5px;
+    color: #2E3033;
+}
+QMenu::item:disabled {
+    color: #A9AFB5;
 }
 QMenu::item:selected {
     background: #E8F7F4;
